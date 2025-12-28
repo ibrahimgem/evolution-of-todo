@@ -1,55 +1,108 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!-- SYNC IMPACT REPORT:
+Version change: N/A → 1.0.0
+Added sections: All principles and sections for Evolution of Todo project
+Removed sections: None
+Templates requiring updates: All ✅ updated
+Follow-up TODOs: None
+-->
+
+# Evolution of Todo Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Spec-Driven Development
+All code must be generated from specifications using Claude Code and Spec-Kit Plus. Specifications become the source of truth that directly generate implementations. No manual coding is allowed - all implementation must be AI-assisted following spec-driven methodology.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. Progressive Complexity
+Each phase builds upon the previous with increasing sophistication. The architecture must support evolution from a simple console app to a sophisticated cloud-native AI system. Code structure and patterns should be extensible to accommodate increasing complexity.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. Reusable Intelligence
+Emphasis on creating reusable skills and subagents for maximum efficiency. Design components as reusable agent skills that can be leveraged across different phases. Create modular, composable agents that can be orchestrated as needed.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. AI-First Architecture
+Design with AI integration in mind from the beginning. Architecture should facilitate AI agent integration, MCP tool development, and natural language processing capabilities. Plan for AI-driven operations from Phase I onwards.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### V. Test-First (NON-NEGOTIABLE)
+TDD mandatory across all phases: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced. All functionality must have comprehensive test coverage before implementation.
 
-### [PRINCIPLE_6_NAME]
+### VI. Cloud-Native Ready
+Architecture must support cloud deployment and scaling from the beginning. Design with containerization, orchestration, and distributed systems principles in mind, even for early phases.
 
+### VII. Modular Design
+Components should be reusable and independently deployable. Each phase should maintain clear separation of concerns while building upon previous work. Design for loose coupling and high cohesion.
 
-[PRINCIPLE__DESCRIPTION]
+## Technology Stack Principles
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+### Phase I: Console Foundation
+Python 3.13+ with standard library only. Focus on core functionality and spec-driven development patterns.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### Phase II: Full-Stack Integration
+Next.js, FastAPI, SQLModel, Neon DB, Better Auth. Maintain consistent patterns with Phase I while adding web capabilities.
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+### Phase III: AI Integration
+OpenAI ChatKit, Agents SDK, Official MCP SDK. Build on previous phases with AI capabilities and natural language interfaces.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### Phase IV: Container Orchestration
+Docker, Minikube, Helm, kubectl-ai, kagent. Prepare for cloud deployment while maintaining functionality from previous phases.
+
+### Phase V: Advanced Cloud Deployment
+Kafka, Dapr, DigitalOcean DOKS. Complete the evolution with enterprise-grade cloud-native capabilities.
+
+### Consistency Requirements
+Maintain consistent patterns, coding standards, and architectural principles across all phases.
+
+## Reusable Intelligence & Agents
+
+### Agent Skills Creation
+- Create reusable agent skills that can be used across phases
+- Design subagents for specific functions that can be orchestrated
+- Implement MCP tools that can be reused in different contexts
+- Build cloud-native blueprints as reusable components
+
+### Skill Architecture
+- Design skills to be composable and extensible
+- Create generic patterns that can be specialized for specific phases
+- Implement proper error handling and logging in all skills
+- Document skill interfaces and expected behaviors
+
+## Development Workflow
+
+### SDD Methodology
+- Follow spec-driven development with specifications first
+- Generate ADRs for significant architectural decisions
+- Create PHRs for all development activities
+- Use Claude Code for all implementation
+- Maintain consistent quality standards across all phases
+
+### Quality Assurance
+- All changes must pass through spec validation
+- Code generation must align with constitutional principles
+- Regular compliance checks against this constitution
+- Automated testing at all levels
+
+## Bonus Features Integration
+
+### Multi-Language Support
+- Plan architecture to support internationalization
+- Design for Urdu language support from early phases
+- Create extensible localization patterns
+
+### Voice Command Integration
+- Design architecture to accommodate voice interfaces
+- Plan for speech-to-text and text-to-speech integration
+- Consider accessibility requirements
+
+### Cloud-Native Blueprints
+- Create reusable deployment patterns
+- Design infrastructure-as-code templates
+- Build extensible cloud deployment strategies
+
+### Extensible Agent Architecture
+- Design for future AI capabilities
+- Plan for additional agent types and functions
+- Create flexible agent orchestration patterns
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
+This constitution supersedes all other practices for this project. All code reviews must verify compliance with these principles. Any amendments require explicit documentation and approval. All phases must maintain compliance with constitutional principles.
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
-
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2025-12-28 | **Last Amended**: 2025-12-28
