@@ -212,6 +212,8 @@ See `.specify/memory/constitution.md` for code quality, testing, performance, se
 ## Active Technologies
 - Python 3.13+ + Python standard library only (no external dependencies) (001-phase1-todo-console)
 - In-memory list during runtime (no persistent storage) (001-phase1-todo-console)
+- Python 3.13+ (backend), TypeScript 5+ (frontend) + FastAPI 0.115+, Next.js 16+, SQLModel 0.0+, Pydantic 2.10+, python-jose 3.3+, passlib 1.7.4, bcrypt 4.2+ (002-fullstack-web-app)
+- Neon Serverless PostgreSQL with async SQLModel ORM (002-fullstack-web-app)
 
 ## Recent Changes
 - 001-phase1-todo-console: Added Python 3.13+ + Python standard library only (no external dependencies)
