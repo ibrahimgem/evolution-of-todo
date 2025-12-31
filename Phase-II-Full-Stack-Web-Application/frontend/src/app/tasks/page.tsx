@@ -7,7 +7,7 @@ import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import ThemeToggle from '../../components/ui/ThemeToggle';
 import TaskForm from '../../components/tasks/TaskForm';
-import { tasksAPI, TaskRead, ApiRequestError } from '../../lib/api';
+import { tasksAPI, TaskRead } from '../../lib/api';
 import { isAuthenticated, removeAuthToken, getCurrentUserId } from '../../lib/auth';
 
 const TasksPage = () => {
@@ -41,18 +41,14 @@ const TasksPage = () => {
     const controller = new AbortController();
     const fetchTasks = async () => {
       try {
-        const data = await tasksAPI.getAll(userId, controller.signal);
+        const data = await tasksAPI.getAll(userId);
         setTasks(data);
         setError('');
       } catch (err: any) {
         if (err.name === 'AbortError') return;
 
         console.error('Error fetching tasks:', err);
-        if (err instanceof ApiRequestError) {
-          setError(err.data.message || 'Failed to load tasks.');
-        } else {
-          setError('An unexpected error occurred. Please try again.');
-        }
+        setError(err.message || 'Failed to load tasks. Please try again.')
       } finally {
         setLoading(false);
       }
@@ -81,11 +77,7 @@ const TasksPage = () => {
       setTasks(tasks.map(t => t.id === task.id ? updatedTask : t));
     } catch (err: any) {
       console.error('Error toggling task completion:', err);
-      if (err instanceof ApiRequestError) {
-        setError(err.data.message);
-      } else {
-        setError('Failed to update task.');
-      }
+      setError(err.message || 'Failed to update task.');
     }
   };
 
@@ -105,11 +97,7 @@ const TasksPage = () => {
       setTasks(tasks.filter(t => t.id !== task.id));
     } catch (err: any) {
       console.error('Error deleting task:', err);
-      if (err instanceof ApiRequestError) {
-        setError(err.data.message);
-      } else {
-        setError('Failed to delete task.');
-      }
+      setError(err.message || 'Failed to delete task.');
     }
   };
 
@@ -123,11 +111,7 @@ const TasksPage = () => {
       setError('');
     } catch (err: any) {
       console.error('Error creating task:', err);
-      if (err instanceof ApiRequestError) {
-        setError(err.data.message);
-      } else {
-        setError('Failed to create task.');
-      }
+      setError(err.message || 'Failed to create task.');
     }
   };
 
