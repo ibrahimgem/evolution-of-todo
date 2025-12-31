@@ -5,6 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError, DBAPIError
+from datetime import datetime, timezone
 from .routes.auth import router as auth_router
 from .routes.tasks import router as tasks_router
 from .database import create_db_and_tables, close_db
