@@ -8,6 +8,10 @@ from typing import AsyncGenerator
 # Get database URL from environment
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./todos.db")
 
+# Fix Railway PostgreSQL URL format (postgresql:// -> postgresql+asyncpg://)
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+
 # Configure engine based on database type
 if DATABASE_URL.startswith("sqlite"):
     # SQLite configuration for development
