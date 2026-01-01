@@ -63,7 +63,9 @@ async def create_db_and_tables():
         print("Database tables created successfully")
     except Exception as e:
         print(f"Error creating database tables: {e}")
-        raise
+        # Don't raise - allow app to start even if DB connection fails
+        # This prevents Railway health checks from failing during startup
+        print("Warning: Application will start but database operations may fail")
 
 async def close_db():
     """
