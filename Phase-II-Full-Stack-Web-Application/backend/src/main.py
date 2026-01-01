@@ -77,7 +77,7 @@ app.add_middleware(
 
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=["localhost", "127.0.0.1", "0.0.0.0", "*.vercel.app"]
+    allowed_hosts=["*"]  # Allow all hosts for now - restrict in production
 )
 
 # Global exception handlers
