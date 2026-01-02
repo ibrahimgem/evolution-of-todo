@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { ConversationList } from '../../components/ConversationList';
 import { ChatMessage as ChatMessageComponent } from '../../components/ChatMessage';
 import type { Conversation, ChatMessage, ChatResponse, ToolCall } from '../../types/chat';
-import { apiClient } from '../../../api-client';
+import { apiClient } from '../../lib/api-client';
 import { MessageCircle, Send, Loader2, Layout, X, XCircle, Calendar } from 'lucide-react';
 import { TaskList } from '../../components/TaskList';
 import type { Task } from '../../components/TaskList';

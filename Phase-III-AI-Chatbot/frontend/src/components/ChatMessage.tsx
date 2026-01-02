@@ -1,6 +1,6 @@
 'use client';
 
-import type { ChatMessage as ChatMessageType } from '@/types/chat';
+import type { ChatMessage as ChatMessageType } from '../types/chat';
 import { ToolCallBadge } from './ToolCallBadge';
 import { User, Bot, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 

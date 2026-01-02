@@ -4,8 +4,8 @@
  */
 
 import { useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { apiClient } from '@/lib/api-client';
+import { useAuth } from '../context/AuthContext';
+import { apiClient } from '../lib/api-client';
 
 /**
  * Sync API client with authentication token

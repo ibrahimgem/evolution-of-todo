@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import { Sparkles, Lock, Mail, User, Loader2, ArrowRight, XCircle } from 'lucide-react';
 
 export default function AuthPage() {

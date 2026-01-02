@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { ToolCall } from '@/types/chat';
+import type { ToolCall } from '../types/chat';
 import {
   CheckCircle,
   XCircle,

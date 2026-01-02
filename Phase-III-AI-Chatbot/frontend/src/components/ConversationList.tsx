@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { Conversation } from '@/types/chat';
+import type { Conversation } from '../types/chat';
 import { Plus, MessageCircle, Calendar, MoreVertical, Trash2, Sparkles } from 'lucide-react';
 
 /**
