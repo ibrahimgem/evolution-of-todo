@@ -1,0 +1,25 @@
+[build]
+builder = "NIXPACKS"
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "typescript", "nodePackages.typescript"]
+
+[phases.install]
+cmds = [
+  "npm install -g typescript",
+  "npm install"
+]
+
+[phases.build]
+cmds = [
+  "npm run build"
+]
+
+[phases.start]
+cmd = "npm start"
+
+[deploy]
+startCommand = "npm start"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
