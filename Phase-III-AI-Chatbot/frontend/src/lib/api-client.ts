@@ -7,6 +7,7 @@
 
 import type { ChatRequest, ChatResponse, Conversation, Message } from '../types/chat';
 
+// Backend URL for proxy routes
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
 
 /**
@@ -97,7 +98,8 @@ class ApiClient {
    * @throws ApiError on validation or registration errors
    */
   async register(email: string, password: string, name?: string): Promise<{ access_token: string; token_type: string }> {
-    const response = await fetch(`${this.baseUrl}/api/auth/register`, {
+    // Use frontend's API route for proxying to backend
+    const response = await fetch(`/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, name }),
@@ -114,7 +116,8 @@ class ApiClient {
    * @throws ApiError on authentication errors
    */
   async login(email: string, password: string): Promise<{ access_token: string; token_type: string }> {
-    const response = await fetch(`${this.baseUrl}/api/auth/login`, {
+    // Use frontend's API route for proxying to backend
+    const response = await fetch(`/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -129,7 +132,8 @@ class ApiClient {
    * @throws ApiError if not authenticated
    */
   async getCurrentUser(): Promise<{ id: number; email: string; name: string | null; created_at: string }> {
-    const response = await fetch(`${this.baseUrl}/api/auth/me`, {
+    // Use frontend's API route for proxying to backend
+    const response = await fetch(`/api/auth/me`, {
       method: 'GET',
       headers: this.getHeaders(),
     });
@@ -144,7 +148,8 @@ class ApiClient {
    * @throws ApiError on network or authentication errors
    */
   async sendMessage(request: ChatRequest): Promise<ChatResponse> {
-    const response = await fetch(`${this.baseUrl}/api/chat`, {
+    // Use frontend's API route for proxying to backend
+    const response = await fetch(`/api/chat`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(request),
@@ -160,7 +165,8 @@ class ApiClient {
    * @throws ApiError on network or authentication errors
    */
   async sendMessageStream(request: ChatRequest): Promise<ReadableStream<Uint8Array>> {
-    const response = await fetch(`${this.baseUrl}/api/chat/stream`, {
+    // Use frontend's API route for proxying to backend
+    const response = await fetch(`/api/chat/stream`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(request),
@@ -198,8 +204,9 @@ class ApiClient {
       offset: String(offset),
     });
 
+    // Use frontend's API route for proxying to backend
     const response = await fetch(
-      `${this.baseUrl}/api/conversations?${params.toString()}`,
+      `/api/conversations?${params.toString()}`,
       {
         method: 'GET',
         headers: this.getHeaders(),
@@ -220,8 +227,9 @@ class ApiClient {
   async getConversation(
     id: string
   ): Promise<{ conversation: Conversation; messages: Message[] }> {
+    // Use frontend's API route for proxying to backend
     const response = await fetch(
-      `${this.baseUrl}/api/conversations/${id}`,
+      `/api/conversations/${id}`,
       {
         method: 'GET',
         headers: this.getHeaders(),
@@ -239,8 +247,9 @@ class ApiClient {
    * @throws ApiError if conversation not found or access denied
    */
   async deleteConversation(id: string): Promise<void> {
+    // Use frontend's API route for proxying to backend
     const response = await fetch(
-      `${this.baseUrl}/api/conversations/${id}`,
+      `/api/conversations/${id}`,
       {
         method: 'DELETE',
         headers: this.getHeaders(),
@@ -256,7 +265,8 @@ class ApiClient {
    */
   async healthCheck(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/health`, {
+      // Use frontend's API route for proxying to backend
+      const response = await fetch(`/api/health`, {
         method: 'GET',
       });
       return response.ok;
