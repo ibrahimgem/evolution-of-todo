@@ -1,0 +1,396 @@
+# Build Deployment Skill
+
+## Overview
+
+This skill provides comprehensive guidance for deploying applications to various cloud platforms including Railway, Vercel, Netlify, AWS, and more. It covers build configurations, environment setup, deployment workflows, and post-deployment verification.
+
+## Platforms Supported
+
+### Railway
+- Python FastAPI applications
+- Next.js applications
+- PostgreSQL database deployment
+- Environment variable management
+- Custom build configurations with railway.toml
+- Nixpacks and Railpack configurations
+
+### Vercel
+- Next.js deployment
+- Environment variables setup
+- Build command configuration
+- Domain management
+
+### Netlify
+- Static site deployment
+- Build settings configuration
+- Environment variables
+- Redirect rules and headers
+
+### AWS
+- ECS/EKS deployment
+- Lambda functions
+- S3 static hosting
+- CloudFront configuration
+- RDS database setup
+
+### Additional Platforms
+- Heroku
+- DigitalOcean App Platform
+- Google Cloud Platform
+- Microsoft Azure
+
+## Common Deployment Patterns
+
+### 1. Full-Stack Applications
+- Backend API deployment
+- Frontend deployment
+- Database setup
+- Environment variable configuration
+- Domain linking
+
+### 2. Static Sites
+- Build process setup
+- CDN configuration
+- Custom domain setup
+- SSL certificate management
+
+### 3. Serverless Applications
+- Function deployment
+- API Gateway configuration
+- Database connections
+- Environment management
+
+## Build Configuration Templates
+
+### Railway
+```toml
+[build]
+builder = "NIXPACKS"
+
+[phases.setup]
+nixPkgs = ["python313"]
+
+[phases.install]
+cmds = ["python -m venv /opt/venv", "/opt/venv/bin/pip install -r requirements.txt"]
+
+[phases.start]
+cmd = "/opt/venv/bin/uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}"
+
+[deploy]
+startCommand = "/opt/venv/bin/uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+```
+
+### Vercel
+```json
+{
+  "version": 2,
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_API_URL": "$NEXT_PUBLIC_API_URL"
+    }
+  },
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "nodejs18.x"
+    }
+  }
+}
+```
+
+### Netlify
+```toml
+[build]
+  command = "npm run build"
+  publish = "out"
+
+[build.environment]
+  NODE_VERSION = "18"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+```
+
+## Environment Variables Management
+
+### Common Variables
+- `DATABASE_URL`: Database connection string
+- `NEXT_PUBLIC_API_URL`: Frontend API endpoint
+- `JWT_SECRET`: Authentication secret
+- `OPENAI_API_KEY`: AI service credentials
+- `PORT`: Application port (usually auto-configured)
+
+### Environment Variable Patterns
+1. **Secret Management**: Use platform-specific secret management
+2. **Environment Separation**: Different values for dev/staging/prod
+3. **Validation**: Ensure required variables are set
+4. **Security**: Never commit secrets to version control
+
+## Database Deployment
+
+### PostgreSQL on Railway
+1. Add PostgreSQL service to project
+2. Configure connection string in environment variables
+3. Set up migrations for schema changes
+4. Monitor performance and scaling
+
+### MongoDB Atlas
+1. Create cluster
+2. Configure network access
+3. Set up database users
+4. Configure connection strings
+
+### AWS RDS
+1. Create RDS instance
+2. Configure security groups
+3. Set up parameter groups
+4. Monitor with CloudWatch
+
+## Domain and SSL Management
+
+### Custom Domains
+1. Purchase domain from registrar
+2. Configure DNS settings
+3. Add domain to platform
+4. Set up SSL certificates
+
+### SSL Certificate Management
+- Automatic certificate provisioning
+- Certificate renewal handling
+- HTTP to HTTPS redirects
+- HSTS headers configuration
+
+## Monitoring and Logging
+
+### Health Checks
+- Application health endpoints
+- Database connectivity checks
+- External service availability
+- Performance metrics
+
+### Logging
+- Application logs aggregation
+- Error tracking and alerting
+- Performance monitoring
+- User behavior analytics
+
+### Monitoring Tools
+- Platform-native monitoring
+- Third-party services (Datadog, New Relic)
+- Custom metrics collection
+- Alert configuration
+
+## Deployment Workflows
+
+### CI/CD Pipeline Setup
+1. **GitHub Actions**: Automated deployment on push
+2. **GitLab CI**: Multi-stage deployment pipelines
+3. **Jenkins**: Custom deployment workflows
+4. **Platform-native**: Built-in deployment triggers
+
+### Multi-Environment Strategy
+1. **Development**: Feature testing and development
+2. **Staging**: Pre-production testing
+3. **Production**: Live application deployment
+
+### Rollback Procedures
+1. **Automatic rollback**: On deployment failure
+2. **Manual rollback**: Version selection and deployment
+3. **Database rollback**: Schema and data rollback procedures
+
+## Troubleshooting Common Issues
+
+### Build Failures
+- Missing dependencies
+- Incorrect build commands
+- Environment variable issues
+- Memory or timeout limits
+
+### Runtime Issues
+- Port configuration problems
+- Database connection failures
+- Environment variable access
+- Permission issues
+
+### Performance Issues
+- Resource allocation
+- Database query optimization
+- Caching strategies
+- CDN configuration
+
+## Security Best Practices
+
+### Application Security
+- Input validation and sanitization
+- Authentication and authorization
+- Secure communication (HTTPS)
+- Secret management
+
+### Infrastructure Security
+- Firewall configuration
+- Access control
+- Regular security updates
+- Vulnerability scanning
+
+### Data Security
+- Encryption at rest and in transit
+- Backup strategies
+- Data retention policies
+- Compliance requirements
+
+## Cost Optimization
+
+### Resource Management
+- Right-sizing instances
+- Auto-scaling configuration
+- Resource monitoring
+- Cost tracking and alerts
+
+### Platform-Specific Optimizations
+- Railway: Optimize build processes
+- Vercel: Edge function usage
+- AWS: Reserved instances, spot instances
+- Netlify: Build minutes optimization
+
+## Platform-Specific Guides
+
+### Railway Deployment Guide
+1. **Project Setup**: Create new project and link repository
+2. **Service Configuration**: Configure backend and frontend services
+3. **Database Setup**: Add and configure PostgreSQL
+4. **Environment Variables**: Set up all required variables
+5. **Custom Domain**: Configure custom domain and SSL
+6. **Monitoring**: Set up health checks and logging
+
+### Vercel Deployment Guide
+1. **Project Import**: Import from GitHub/GitLab
+2. **Build Configuration**: Set build command and output directory
+3. **Environment Variables**: Configure environment variables
+4. **Domain Setup**: Add custom domain
+5. **Performance**: Configure caching and optimization
+6. **Monitoring**: Set up analytics and error tracking
+
+### AWS Deployment Guide
+1. **Account Setup**: Configure AWS account and IAM roles
+2. **Resource Creation**: Create necessary AWS resources
+3. **CI/CD Setup**: Configure CodePipeline or CodeBuild
+4. **Monitoring**: Set up CloudWatch and CloudTrail
+5. **Cost Management**: Configure billing alerts and optimization
+
+## Migration Strategies
+
+### Platform Migration
+1. **Assessment**: Evaluate current infrastructure
+2. **Planning**: Create migration timeline and strategy
+3. **Execution**: Migrate resources and data
+4. **Validation**: Verify functionality and performance
+5. **Cleanup**: Remove old resources
+
+### Database Migration
+1. **Schema Migration**: Transfer database schema
+2. **Data Migration**: Move existing data
+3. **Connection Updates**: Update application connection strings
+4. **Validation**: Verify data integrity
+5. **Performance**: Optimize for new platform
+
+## Performance Optimization
+
+### Application Optimization
+- Code optimization techniques
+- Database query optimization
+- Caching strategies
+- Asset optimization
+
+### Infrastructure Optimization
+- Load balancing setup
+- CDN configuration
+- Database connection pooling
+- Resource scaling strategies
+
+## Backup and Recovery
+
+### Backup Strategies
+- Automated backup schedules
+- Multiple backup locations
+- Backup verification
+- Recovery testing
+
+### Disaster Recovery
+- Recovery point objectives (RPO)
+- Recovery time objectives (RTO)
+- Failover procedures
+- Business continuity planning
+
+## Compliance and Governance
+
+### Regulatory Compliance
+- GDPR compliance
+- HIPAA compliance
+- PCI DSS compliance
+- SOX compliance
+
+### Security Standards
+- OWASP guidelines
+- Security scanning
+- Vulnerability management
+- Security audits
+
+## Advanced Deployment Patterns
+
+### Blue-Green Deployment
+- Traffic switching mechanisms
+- Rollback procedures
+- Health check validation
+- Monitoring and alerting
+
+### Canary Deployment
+- Gradual traffic shifting
+- Metrics collection
+- Automated rollback triggers
+- Performance monitoring
+
+### Microservices Deployment
+- Service mesh configuration
+- Container orchestration
+- Service discovery
+- Load balancing strategies
+
+## Tool Integration
+
+### Development Tools
+- IDE integration
+- Local development setup
+- Debugging tools
+- Performance profiling
+
+### Monitoring Tools
+- Application performance monitoring
+- Infrastructure monitoring
+- Log aggregation
+- Alert management
+
+### CI/CD Tools
+- GitHub Actions
+- GitLab CI
+- Jenkins
+- CircleCI
+- Travis CI
+
+## Best Practices Summary
+
+1. **Automate Everything**: Use CI/CD for all deployment processes
+2. **Environment Parity**: Keep development, staging, and production environments consistent
+3. **Monitoring and Logging**: Implement comprehensive monitoring and logging
+4. **Security First**: Follow security best practices throughout the deployment process
+5. **Cost Awareness**: Monitor and optimize costs continuously
+6. **Documentation**: Maintain up-to-date deployment documentation
+7. **Testing**: Implement thorough testing at all stages
+8. **Rollback Plans**: Always have rollback procedures in place
+9. **Team Training**: Ensure team members understand deployment processes
+10. **Continuous Improvement**: Regularly review and improve deployment practices
+
+This skill provides a comprehensive foundation for successful application deployment across multiple cloud platforms, ensuring reliability, security, and performance.
