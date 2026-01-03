@@ -7,11 +7,12 @@ Implements the contract defined in specs/003-ai-chatbot/contracts/mcp-tools.yaml
 import logging
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field, validator, field_validator
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from src.models import Task
+from ..models import get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -119,23 +120,20 @@ async def add_task(
             f"title='{input_data.title}'"
         )
 
-        # Create task instance
+        # Create task instance with timezone-naive UTC datetimes
         task = Task(
             user_id=user_id,
             title=input_data.title,
             description=input_data.description,
             completed=False,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc)
+            created_at=get_utc_now(),
+            updated_at=get_utc_now()
         )
 
         # Add due_date if provided (already validated as future)
         if input_data.due_date:
-            # Ensure timezone-aware
-            if input_data.due_date.tzinfo is None:
-                task.due_date = input_data.due_date.replace(tzinfo=timezone.utc)
-            else:
-                task.due_date = input_data.due_date
+            # Use timezone-naive UTC datetime for database compatibility
+            task.due_date = input_data.due_date.replace(tzinfo=None)
 
         # Persist to database
         db.add(task)

@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from src.models import Task
+from src.models import Task, get_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -108,13 +108,13 @@ async def update_task(
         if input_data.description is not None:
             task.description = input_data.description
         if input_data.due_date is not None:
-            # Already validated as future date
+            # Already validated as future date, use timezone-naive UTC for database compatibility
             if input_data.due_date.tzinfo is None:
-                task.due_date = input_data.due_date.replace(tzinfo=timezone.utc)
+                task.due_date = input_data.due_date.replace(tzinfo=timezone.utc).replace(tzinfo=None)
             else:
-                task.due_date = input_data.due_date
+                task.due_date = input_data.due_date.replace(tzinfo=None)
 
-        task.updated_at = datetime.now(timezone.utc)
+        task.updated_at = get_utc_now()
 
         db.add(task)
         await db.commit()
