@@ -6,7 +6,7 @@ import { ConversationList } from '../../components/ConversationList';
 import { ChatMessage as ChatMessageComponent } from '../../components/ChatMessage';
 import type { Conversation, ChatMessage, ChatResponse, ToolCall } from '../../types/chat';
 import { apiClient } from '../../lib/api-client';
-import { MessageCircle, Send, Loader2, Layout, X, XCircle, Calendar } from 'lucide-react';
+import { MessageCircle, Send, Loader2, Layout, X, XCircle, Calendar, LogOut } from 'lucide-react';
 import { TaskList } from '../../components/TaskList';
 import type { Task } from '../../components/TaskList';
 
@@ -22,7 +22,7 @@ import type { Task } from '../../components/TaskList';
  * - Responsive layout with conversation sidebar
  */
 export default function ChatPage() {
-  const { token, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { token, isAuthenticated, isLoading: authLoading, logout } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -227,7 +227,7 @@ export default function ChatPage() {
       }
 
       // If a task-modifying tool was called, refresh the task overlay if it's open
-      const mutationTools = ['add_task', 'complete_task', 'delete_task', 'update_task'];
+      const mutationTools = ['add_task', 'complete_task', 'delete_task', 'update_task', 'list_tasks'];
       const hasMutation = response.tool_calls?.some(tc => mutationTools.includes(tc.tool_name));
       if (hasMutation && showTaskOverlay) {
         await loadAllTasks();
@@ -272,30 +272,68 @@ export default function ChatPage() {
   const loadAllTasks = useCallback(async () => {
     setIsLoadingTasks(true);
     try {
-      // Use the list_tasks tool via a direct API call or generic endpoint if available
-      // For now, we'll try to get them from the latest list_tasks tool call result in messages
-      // or implement a dedicated fetchTasks if the API client supports it.
-      // Assuming apiClient has a way to get tasks (standard Phase II functionality)
-      const response = await (apiClient as any).getTasks?.(100, 0);
-      if (response && response.tasks) {
-        setAllTasks(response.tasks);
+      // Try to get tasks using the list_tasks MCP tool via a direct API call
+      try {
+        const response = await apiClient.sendMessage({
+          message: "Please list all my tasks",
+          conversation_id: selectedConversationId || undefined,
+        });
+        // Check if the response contains tool calls with list_tasks results
+        if (response.tool_calls) {
+          const listTasksCall = response.tool_calls.find(tc => tc.tool_name === 'list_tasks');
+          if (listTasksCall && listTasksCall.result && listTasksCall.result.tasks) {
+            setAllTasks(listTasksCall.result.tasks);
+            return;
+          }
+        }
+      } catch (toolError) {
+        console.log('Could not get tasks via tool call, trying direct fetch');
       }
+
+      // Fallback: Try to get tasks from the latest list_tasks tool call in existing messages
+      const listTasksMessages = messages.filter(m =>
+        m.toolCalls?.some(tc => tc.tool_name === 'list_tasks' && tc.result)
+      );
+      if (listTasksMessages.length > 0) {
+        const latestMessage = listTasksMessages[listTasksMessages.length - 1];
+        const listTasksCall = latestMessage.toolCalls?.find(tc => tc.tool_name === 'list_tasks');
+        if (listTasksCall?.result?.tasks) {
+          setAllTasks(listTasksCall.result.tasks);
+          return;
+        }
+      }
+
+      // Final fallback: Empty state
+      setAllTasks([]);
+      setError('No task data available. Please ask the AI to list tasks: "Please list all my tasks"');
     } catch (err) {
       console.error('Failed to load tasks:', err);
+      setError('Failed to load tasks. Please try again.');
     } finally {
       setIsLoadingTasks(false);
     }
-  }, []);
+  }, [selectedConversationId, messages]);
 
   /**
    * Toggle Task Overview
    */
-  const toggleTaskOverlay = () => {
+  const toggleTaskOverlay = async () => {
     const newState = !showTaskOverlay;
     setShowTaskOverlay(newState);
     if (newState) {
-      loadAllTasks();
+      // When opening task overlay, try to get fresh task data
+      await loadAllTasks();
+    } else {
+      // When closing task overlay, clear error state
+      setError(null);
     }
+  };
+
+  /**
+   * Handle logout
+   */
+  const handleLogout = () => {
+    logout();
   };
 
   /**
@@ -389,19 +427,29 @@ export default function ChatPage() {
               </p>
             </div>
           </div>
-          <button
-            onClick={toggleTaskOverlay}
-            className={`p-2 rounded-lg transition-colors ${
-              showTaskOverlay
-                ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400'
-                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200'
-            }`}
-            title="Toggle Task View"
-            aria-pressed={showTaskOverlay}
-            aria-label="View list of all tasks"
-          >
-            <Layout className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleTaskOverlay}
+              className={`p-2 rounded-lg transition-colors ${
+                showTaskOverlay
+                  ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400'
+                  : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200'
+              }`}
+              title="Toggle Task View"
+              aria-pressed={showTaskOverlay}
+              aria-label="View list of all tasks"
+            >
+              <Layout className="w-5 h-5" />
+            </button>
+            <button
+              onClick={handleLogout}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              title="Logout"
+              aria-label="Logout"
+            >
+              <LogOut className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            </button>
+          </div>
         </header>
 
         {/* Backdrop for mobile sidebar */}
