@@ -36,6 +36,7 @@ export default function ChatPage() {
   const [isLoadingTasks, setIsLoadingTasks] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   /**
    * Auto-scroll to bottom when new messages arrive
@@ -538,7 +539,7 @@ export default function ChatPage() {
         {/* Input Area */}
         <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4 pb-6 md:pb-4">
           <div className="max-w-3xl mx-auto">
-            <form onSubmit={handleSendMessage} className="relative flex items-end gap-2">
+            <form ref={formRef} onSubmit={handleSendMessage} className="relative flex items-end gap-2">
               <div className="relative flex-1">
                 <textarea
                   rows={1}
@@ -548,6 +549,15 @@ export default function ChatPage() {
                     // Simple auto-resize
                     e.target.style.height = 'auto';
                     e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+                  }}
+                  onKeyDown={(e) => {
+                    // Submit on Enter (without Shift), allow new line on Shift+Enter
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (inputValue.trim() && !isSending) {
+                        formRef.current?.requestSubmit();
+                      }
+                    }
                   }}
                   placeholder="Ask me anything..."
                   disabled={isSending}
