@@ -27,7 +27,7 @@ def upgrade() -> None:
         sa.Column('title', sa.String(length=200), nullable=False),
         sa.Column('created_at', sa.DateTime(), nullable=False),
         sa.Column('updated_at', sa.DateTime(), nullable=False),
-        sa.Column('metadata', postgresql.JSON(astext_type=sa.Text()), nullable=False),
+        sa.Column('meta', postgresql.JSON(astext_type=sa.Text()), nullable=False),
         sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
         sa.PrimaryKeyConstraint('id')
     )
