@@ -281,8 +281,8 @@ export default function ChatPage() {
         // Check if the response contains tool calls with list_tasks results
         if (response.tool_calls) {
           const listTasksCall = response.tool_calls.find(tc => tc.tool_name === 'list_tasks');
-          if (listTasksCall && listTasksCall.result && listTasksCall.result.tasks) {
-            setAllTasks(listTasksCall.result.tasks);
+          if (listTasksCall && listTasksCall.result && 'tasks' in listTasksCall.result) {
+            setAllTasks((listTasksCall.result as { tasks: Task[] }).tasks);
             return;
           }
         }
@@ -297,8 +297,8 @@ export default function ChatPage() {
       if (listTasksMessages.length > 0) {
         const latestMessage = listTasksMessages[listTasksMessages.length - 1];
         const listTasksCall = latestMessage.toolCalls?.find(tc => tc.tool_name === 'list_tasks');
-        if (listTasksCall?.result?.tasks) {
-          setAllTasks(listTasksCall.result.tasks);
+        if (listTasksCall?.result && 'tasks' in listTasksCall.result) {
+          setAllTasks((listTasksCall.result as { tasks: Task[] }).tasks);
           return;
         }
       }
