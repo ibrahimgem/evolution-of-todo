@@ -1,6 +1,5 @@
 # Explicitly set Node.js as the provider
-[providers]
-node = "20"
+providers = ["node"]
 
 [phases.setup]
 nixPkgs = ["nodejs_20", "typescript", "nodePackages.typescript"]
