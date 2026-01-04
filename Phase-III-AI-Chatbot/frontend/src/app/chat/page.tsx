@@ -286,7 +286,7 @@ export default function ChatPage() {
             return;
           }
         }
-      } catch (toolError) {
+      } catch {
         console.log('Could not get tasks via tool call, trying direct fetch');
       }
 
