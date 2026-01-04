@@ -1,7 +1,7 @@
 """Chat routes for AI-powered conversational interface."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select
+from sqlmodel import select, delete
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict
 import logging
@@ -473,26 +473,21 @@ async def delete_conversation(
                 detail="Access denied"
             )
 
-        # Delete messages first (foreign key constraint)
-        messages_statement = select(Message).where(
+        # Delete messages first using bulk delete (foreign key constraint)
+        delete_messages_stmt = delete(Message).where(
             Message.conversation_id == conversation_id
         )
-        messages_result = await db.execute(messages_statement)
-        messages = messages_result.scalars().all()
-
-        for message in messages:
-            await db.delete(message)
-
-        # Flush message deletions before deleting conversation
-        await db.flush()
+        await db.execute(delete_messages_stmt)
 
         # Delete conversation
-        await db.delete(conversation)
+        delete_conv_stmt = delete(Conversation).where(
+            Conversation.id == conversation_id
+        )
+        await db.execute(delete_conv_stmt)
         await db.commit()
 
         logger.info(
-            f"Deleted conversation {conversation_id} with {len(messages)} messages "
-            f"for user {current_user.id}"
+            f"Deleted conversation {conversation_id} for user {current_user.id}"
         )
 
         return {
