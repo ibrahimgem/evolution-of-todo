@@ -483,6 +483,9 @@ async def delete_conversation(
         for message in messages:
             await db.delete(message)
 
+        # Flush message deletions before deleting conversation
+        await db.flush()
+
         # Delete conversation
         await db.delete(conversation)
         await db.commit()
