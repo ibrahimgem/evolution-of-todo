@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from .routes.auth import router as auth_router
 from .routes.chat import router as chat_router
 from .routes.test import router as test_router
+from .routes.health import router as health_router
 from .database import create_db_and_tables, close_db
 from .schemas import ErrorResponse
 from .exceptions import BusinessException
@@ -221,6 +222,7 @@ async def general_exception_handler(request, exc):
 app.include_router(auth_router, prefix="/api")  # Auth router: /api/auth/*
 app.include_router(chat_router, prefix="/api")  # Chat router: /api/chat, /api/conversations/*
 app.include_router(test_router)  # Test router has its own /api/test prefix
+app.include_router(health_router)  # Health router: /api/health (for K8s probes)
 
 # Health check endpoint
 @app.get("/health")

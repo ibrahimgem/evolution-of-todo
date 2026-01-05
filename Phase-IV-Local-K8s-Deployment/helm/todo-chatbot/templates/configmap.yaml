@@ -1,0 +1,17 @@
+{{- /*
+Helm ConfigMap Template for Todo Chatbot
+[Task]: T030
+[From]: specs/004-local-k8s-deployment/spec.md §US3, plan.md §DD-004
+*/ -}}
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  labels:
+    app: {{ .Release.Name }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version }}
+data:
+  {{- range $key, $value := .Values.config }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
