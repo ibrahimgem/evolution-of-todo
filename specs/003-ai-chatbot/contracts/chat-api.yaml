@@ -1,0 +1,365 @@
+openapi: 3.0.3
+info:
+  title: AI-Powered Todo Chatbot API
+  version: 1.0.0
+  description: API contract for conversational AI chat endpoints
+
+servers:
+  - url: http://localhost:8000/api
+    description: Local development
+  - url: https://backend-production.railway.app/api
+    description: Production (Railway)
+
+security:
+  - BearerAuth: []
+
+paths:
+  /chat:
+    post:
+      summary: Send message to AI chatbot
+      description: Process user message with AI agent, execute tool calls, and return response
+      operationId: sendChatMessage
+      tags:
+        - Chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - message
+              properties:
+                message:
+                  type: string
+                  description: User's message to the AI
+                  minLength: 1
+                  maxLength: 1000
+                  example: "Add a task to buy groceries tomorrow"
+                conversation_id:
+                  type: string
+                  description: Existing conversation ID (omit to create new conversation)
+                  example: "123"
+      responses:
+        '200':
+          description: Successful response from AI
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - response
+                  - conversation_id
+                  - tool_calls
+                properties:
+                  response:
+                    type: string
+                    description: AI's natural language response
+                    example: "I've added 'Buy groceries' to your tasks for tomorrow."
+                  conversation_id:
+                    type: string
+                    description: Conversation ID (newly created or existing)
+                    example: "123"
+                  tool_calls:
+                    type: array
+                    description: Tools executed by AI during this turn
+                    items:
+                      type: object
+                      required:
+                        - tool_name
+                        - result
+                      properties:
+                        tool_name:
+                          type: string
+                          description: Name of the MCP tool called
+                          example: "add_task"
+                        result:
+                          type: object
+                          description: Tool execution result
+                          example:
+                            success: true
+                            task:
+                              id: 42
+                              title: "Buy groceries"
+                              due_date: "2026-01-02T00:00:00Z"
+        '401':
+          description: Unauthorized - invalid or missing JWT token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded (30 requests/minute)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error (OpenAI API failure, database error)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /chat/stream:
+    post:
+      summary: Send message with streaming response
+      description: Process user message and stream AI response in real-time using Server-Sent Events
+      operationId: sendChatMessageStream
+      tags:
+        - Chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - message
+              properties:
+                message:
+                  type: string
+                  description: User's message
+                  example: "Show me my incomplete tasks"
+                conversation_id:
+                  type: string
+                  description: Existing conversation ID
+                  example: "123"
+      responses:
+        '200':
+          description: Streaming response (Server-Sent Events)
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: SSE stream with data chunks
+                example: |
+                  data: {"content": "Here "}
+
+                  data: {"content": "are your "}
+
+                  data: {"content": "tasks..."}
+
+  /conversations:
+    get:
+      summary: List user's conversations
+      description: Retrieve all conversations for authenticated user
+      operationId: listConversations
+      tags:
+        - Conversations
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+          description: Maximum conversations to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+          description: Pagination offset
+      responses:
+        '200':
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - conversations
+                  - total
+                properties:
+                  conversations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Conversation'
+                  total:
+                    type: integer
+                    description: Total conversations for user
+                    example: 15
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /conversations/{conversation_id}:
+    get:
+      summary: Get conversation with message history
+      description: Retrieve specific conversation and its messages
+      operationId: getConversation
+      tags:
+        - Conversations
+      parameters:
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Conversation ID
+      responses:
+        '200':
+          description: Conversation with messages
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - conversation
+                  - messages
+                properties:
+                  conversation:
+                    $ref: '#/components/schemas/Conversation'
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+        '404':
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Access denied (conversation belongs to different user)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      summary: Delete conversation
+      description: Delete conversation and all its messages
+      operationId: deleteConversation
+      tags:
+        - Conversations
+      parameters:
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Conversation deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Conversation deleted successfully"
+        '404':
+          description: Conversation not found
+        '403':
+          description: Access denied
+
+components:
+  schemas:
+    Conversation:
+      type: object
+      required:
+        - id
+        - user_id
+        - title
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          example: "123"
+        user_id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          maxLength: 200
+          example: "Add a task to buy groceries tomorrow..."
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-01T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2026-01-01T10:15:00Z"
+        metadata:
+          type: object
+          description: Extensible metadata field
+          example: {}
+
+    Message:
+      type: object
+      required:
+        - id
+        - conversation_id
+        - role
+        - created_at
+      properties:
+        id:
+          type: string
+          example: "456"
+        conversation_id:
+          type: string
+          example: "123"
+        role:
+          type: string
+          enum: [user, assistant, system]
+          example: "user"
+        content:
+          type: string
+          nullable: true
+          example: "Add a task to buy groceries tomorrow"
+        tool_calls:
+          type: object
+          nullable: true
+          description: MCP tool invocations and results
+          example:
+            tool_name: "add_task"
+            arguments:
+              title: "Buy groceries"
+              due_date: "2026-01-02T00:00:00Z"
+            result:
+              success: true
+              task:
+                id: 42
+                title: "Buy groceries"
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-01T10:00:00Z"
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+        - code
+      properties:
+        error:
+          type: string
+          example: "Unauthorized"
+        message:
+          type: string
+          example: "Invalid or expired JWT token"
+        code:
+          type: string
+          example: "AUTH_ERROR"
+        details:
+          type: object
+          description: Additional error context
+          nullable: true
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token from Phase II authentication system

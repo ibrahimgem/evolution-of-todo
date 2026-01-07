@@ -1,0 +1,77 @@
+# Frontend .dockerignore
+# [Task]: T009, T017
+# [From]: specs/004-local-k8s-deployment/spec.md §US1, plan.md §DD-001
+
+# Dependencies
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js build output
+.next
+out
+
+# Testing
+coverage
+.nyc_output
+
+# IDE and editor files
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files (sensitive data)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+CHANGELOG.md
+docs/
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Kubernetes/Helm (not needed in container)
+k8s/
+helm/
+*.yaml
+!next.config.yaml
+
+# Test files
+__tests__
+*.test.js
+*.test.ts
+*.test.tsx
+*.spec.js
+*.spec.ts
+*.spec.tsx
+jest.config.*
+cypress/
+
+# Build tools config
+.eslintrc*
+.prettierrc*
+tsconfig.tsbuildinfo
+
+# Misc
+*.log
+*.md
+!package*.json

@@ -44,7 +44,12 @@ origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:3001",
+    "https://frontend-roan-delta-27.vercel.app",
 ]
+
+# For development/testing - allow all origins
+# In production, restrict to specific domains
+allow_all_origins = True
 
 allowed_headers = [
     "Accept",
@@ -63,16 +68,16 @@ allowed_headers = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
+    allow_origins=["*"] if allow_all_origins else origins,
+    allow_credentials=not allow_all_origins,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=allowed_headers,
+    allow_headers=["*"] if allow_all_origins else allowed_headers,
     expose_headers=["Content-Length", "Content-Type"],
 )
 
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=["localhost", "127.0.0.1", "0.0.0.0", "*.vercel.app"]
+    allowed_hosts=["*"]  # Allow all hosts for now - restrict in production
 )
 
 # Global exception handlers
@@ -158,6 +163,10 @@ app.include_router(tasks_router, prefix="/api")
 # Health check endpoint
 @app.get("/health")
 async def health_check():
+    """
+    Health check endpoint that doesn't depend on database
+    This ensures Railway health checks pass even during startup
+    """
     return {
         "status": "healthy",
         "service": "todo-api",
