@@ -16,4 +16,5 @@ data:
   DATABASE_HOST: "host.minikube.internal"
   DATABASE_PORT: "5432"
   DATABASE_NAME: "todo_chatbot"
+  DATABASE_URL: "sqlite+aiosqlite:///./data/todos.db"
   LOG_LEVEL: "INFO"

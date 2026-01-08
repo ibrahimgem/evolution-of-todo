@@ -58,6 +58,11 @@ spec:
                 configMapKeyRef:
                   name: todo-chatbot-config
                   key: LOG_LEVEL
+            - name: DATABASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: todo-chatbot-config
+                  key: DATABASE_URL
             - name: DATABASE_USER
               valueFrom:
                 secretKeyRef:
@@ -74,6 +79,11 @@ spec:
                   name: todo-chatbot-secret
                   key: OPENAI_API_KEY
             - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: todo-chatbot-secret
+                  key: JWT_SECRET
+            - name: JWT_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: todo-chatbot-secret

@@ -20,18 +20,16 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Create non-root user
-RUN addgroup -g 1000 nodeuser && \
-    adduser -u 1000 -G nodeuser nodeuser
+# Use existing 'node' user (UID/GID 1000) from node:alpine base image
 
 # Copy build artifacts and dependencies from builder
-COPY --from=builder --chown=nodeuser:nodeuser /app/node_modules ./node_modules
-COPY --from=builder --chown=nodeuser:nodeuser /app/.next ./.next
-COPY --from=builder --chown=nodeuser:nodeuser /app/package*.json ./package*.json
-COPY --from=builder --chown=nodeuser:nodeuser /app/public ./public
+COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/.next ./.next
+COPY --from=builder --chown=node:node /app/package.json /app/package-lock.json ./
+COPY --from=builder --chown=node:node /app/public ./public
 
 # Copy health check script
-COPY --from=builder --chown=nodeuser:nodeuser /app/public/healthz.js ./healthz.js
+COPY --from=builder --chown=node:node /app/public/healthz.js ./healthz.js
 
 # Set environment variables
 ENV NODE_ENV=production
@@ -41,7 +39,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 EXPOSE 3000
 
 # Switch to non-root user
-USER nodeuser
+USER node
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
