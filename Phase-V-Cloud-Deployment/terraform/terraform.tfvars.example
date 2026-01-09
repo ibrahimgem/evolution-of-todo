@@ -1,0 +1,56 @@
+# Phase V: Enterprise Cloud Deployment
+# Terraform Variables Example File
+#
+# Copy this file to terraform.tfvars and fill in your values
+#
+# [Task]: T007
+# [From]: speckit.specify §3.1, speckit.plan §2.1
+
+# Required Configuration
+do_token = "your-digitalocean-api-token-here"
+
+# Cluster Configuration
+cluster_name        = "todo-chatbot-prod"
+cluster_region      = "nyc1"
+kubernetes_version  = "1.28.x"
+node_size          = "s-2vcpu-4gb"
+auto_scale_enabled = true
+min_nodes          = 3
+max_nodes          = 10
+
+# Container Registry Configuration
+registry_name        = "todo-chatbot-registry"
+registry_tier        = "basic"
+registry_credentials_expiry = 86400
+
+# Database Configuration
+database_name        = "todo-chatbot-db"
+database_version     = "15"
+database_size        = "db-s-dev-database-general-1vcpu-1gb"
+database_node_count  = 1
+database_pool_size   = 20
+
+# Storage Configuration
+spaces_bucket_name   = "todo-chatbot-assets"
+spaces_region        = "nyc3"
+
+# Environment Configuration
+environment          = "production"
+project_name         = "todo-chatbot"
+cost_center          = "engineering"
+
+# Optional Features (set to true to enable)
+create_vpc           = false
+create_load_balancer = false
+create_domain        = false
+
+# Advanced Configuration
+enable_private_network = true
+enable_monitoring      = true
+budget_alert_threshold = 100
+
+# SSL Configuration (if using load balancer)
+# ssl_certificate_id = "your-ssl-certificate-id"
+
+# Domain Configuration (if creating DNS)
+# domain_name = "your-domain.com"

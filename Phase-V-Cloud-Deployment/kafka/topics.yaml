@@ -1,0 +1,423 @@
+# Phase V: Enterprise Cloud Deployment
+# Kafka Topics Definition
+#
+# [Task]: T013
+# [From]: speckit.specify §3.2, speckit.plan §2.2
+
+---
+# Todo Events Topic
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: todo-events
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: todo-events
+    app.kubernetes.io/part-of: todo-chatbot
+    strimzi.io/cluster: todo-chatbot-kafka
+spec:
+  partitions: 6
+  replicas: 3
+  config:
+    # Retention policy
+    retention.ms: 604800000  # 7 days in milliseconds
+    retention.bytes: 1073741824  # 1GB per partition
+
+    # Cleanup policy
+    cleanup.policy: delete
+
+    # Compression
+    compression.type: gzip
+
+    # Performance tuning
+    segment.ms: 86400000  # 1 day segments
+    segment.bytes: 104857600  # 100MB segments
+    max.message.bytes: 1048576  # 1MB max message size
+
+    # Replication and durability
+    min.insync.replicas: 2
+    unclean.leader.election.enable: false
+
+    # Topic-level configuration
+    delete.retention.ms: 86400000  # 1 day for tombstone cleanup
+    file.delete.delay.ms: 60000  # 1 minute delay before deleting files
+
+---
+# Chat Events Topic
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: chat-events
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: chat-events
+    app.kubernetes.io/part-of: todo-chatbot
+    strimzi.io/cluster: todo-chatbot-kafka
+spec:
+  partitions: 6
+  replicas: 3
+  config:
+    # Retention policy
+    retention.ms: 604800000  # 7 days in milliseconds
+    retention.bytes: 1073741824  # 1GB per partition
+
+    # Cleanup policy
+    cleanup.policy: delete
+
+    # Compression
+    compression.type: gzip
+
+    # Performance tuning
+    segment.ms: 86400000  # 1 day segments
+    segment.bytes: 104857600  # 100MB segments
+    max.message.bytes: 1048576  # 1MB max message size
+
+    # Replication and durability
+    min.insync.replicas: 2
+    unclean.leader.election.enable: false
+
+    # Topic-level configuration
+    delete.retention.ms: 86400000  # 1 day for tombstone cleanup
+    file.delete.delay.ms: 60000  # 1 minute delay before deleting files
+
+---
+# User Events Topic
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: user-events
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: user-events
+    app.kubernetes.io/part-of: todo-chatbot
+    strimzi.io/cluster: todo-chatbot-kafka
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+    # Retention policy
+    retention.ms: 2592000000  # 30 days in milliseconds
+    retention.bytes: 536870912  # 500MB per partition
+
+    # Cleanup policy
+    cleanup.policy: delete
+
+    # Compression
+    compression.type: gzip
+
+    # Performance tuning
+    segment.ms: 86400000  # 1 day segments
+    segment.bytes: 104857600  # 100MB segments
+    max.message.bytes: 1048576  # 1MB max message size
+
+    # Replication and durability
+    min.insync.replicas: 2
+    unclean.leader.election.enable: false
+
+    # Topic-level configuration
+    delete.retention.ms: 86400000  # 1 day for tombstone cleanup
+    file.delete.delay.ms: 60000  # 1 minute delay before deleting files
+
+---
+# Dead Letter Queue Topic
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: dlq
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: dlq
+    app.kubernetes.io/part-of: todo-chatbot
+    strimzi.io/cluster: todo-chatbot-kafka
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+    # Retention policy for failed messages
+    retention.ms: 2592000000  # 30 days in milliseconds
+    retention.bytes: 1073741824  # 1GB per partition
+
+    # Cleanup policy
+    cleanup.policy: delete
+
+    # Compression
+    compression.type: gzip
+
+    # Performance tuning
+    segment.ms: 86400000  # 1 day segments
+    segment.bytes: 104857600  # 100MB segments
+    max.message.bytes: 1048576  # 1MB max message size
+
+    # Replication and durability
+    min.insync.replicas: 2
+    unclean.leader.election.enable: false
+
+    # Topic-level configuration
+    delete.retention.ms: 86400000  # 1 day for tombstone cleanup
+    file.delete.delay.ms: 60000  # 1 minute delay before deleting files
+
+---
+# Analytics Events Topic (for downstream processing)
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: analytics-events
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: analytics-events
+    app.kubernetes.io/part-of: todo-chatbot
+    strimzi.io/cluster: todo-chatbot-kafka
+spec:
+  partitions: 4
+  replicas: 3
+  config:
+    # Retention policy for analytics
+    retention.ms: 604800000  # 7 days in milliseconds
+    retention.bytes: 2147483648  # 2GB per partition
+
+    # Cleanup policy
+    cleanup.policy: delete
+
+    # Compression
+    compression.type: gzip
+
+    # Performance tuning
+    segment.ms: 86400000  # 1 day segments
+    segment.bytes: 104857600  # 100MB segments
+    max.message.bytes: 1048576  # 1MB max message size
+
+    # Replication and durability
+    min.insync.replicas: 2
+    unclean.leader.election.enable: false
+
+    # Topic-level configuration
+    delete.retention.ms: 86400000  # 1 day for tombstone cleanup
+    file.delete.delay.ms: 60000  # 1 minute delay before deleting files
+
+---
+# System Events Topic (for operational monitoring)
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: system-events
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: system-events
+    app.kubernetes.io/part-of: todo-chatbot
+    strimzi.io/cluster: todo-chatbot-kafka
+spec:
+  partitions: 2
+  replicas: 3
+  config:
+    # Retention policy for system events
+    retention.ms: 2592000000  # 30 days in milliseconds
+    retention.bytes: 536870912  # 500MB per partition
+
+    # Cleanup policy
+    cleanup.policy: delete
+
+    # Compression
+    compression.type: gzip
+
+    # Performance tuning
+    segment.ms: 86400000  # 1 day segments
+    segment.bytes: 104857600  # 100MB segments
+    max.message.bytes: 1048576  # 1MB max message size
+
+    # Replication and durability
+    min.insync.replicas: 2
+    unclean.leader.election.enable: false
+
+    # Topic-level configuration
+    delete.retention.ms: 86400000  # 1 day for tombstone cleanup
+    file.delete.delay.ms: 60000  # 1 minute delay before deleting files
+
+---
+# Kafka Topic Configuration Map
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-topic-config
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: kafka-topic-config
+    app.kubernetes.io/part-of: todo-chatbot
+data:
+  topic-defaults.yaml: |
+    # Default configuration for all topics
+    retention.ms: 604800000  # 7 days
+    retention.bytes: 1073741824  # 1GB
+    cleanup.policy: delete
+    compression.type: gzip
+    segment.ms: 86400000  # 1 day
+    segment.bytes: 104857600  # 100MB
+    max.message.bytes: 1048576  # 1MB
+    min.insync.replicas: 2
+    unclean.leader.election.enable: false
+    delete.retention.ms: 86400000  # 1 day
+    file.delete.delay.ms: 60000  # 1 minute
+
+  topic-mappings.yaml: |
+    # Topic-specific configurations
+    todo-events:
+      partitions: 6
+      retention.ms: 604800000  # 7 days
+      retention.bytes: 1073741824  # 1GB
+
+    chat-events:
+      partitions: 6
+      retention.ms: 604800000  # 7 days
+      retention.bytes: 1073741824  # 1GB
+
+    user-events:
+      partitions: 3
+      retention.ms: 2592000000  # 30 days
+      retention.bytes: 536870912  # 500MB
+
+    dlq:
+      partitions: 3
+      retention.ms: 2592000000  # 30 days
+      retention.bytes: 1073741824  # 1GB
+
+    analytics-events:
+      partitions: 4
+      retention.ms: 604800000  # 7 days
+      retention.bytes: 2147483648  # 2GB
+
+    system-events:
+      partitions: 2
+      retention.ms: 2592000000  # 30 days
+      retention.bytes: 536870912  # 500MB
+
+---
+# Topic ACLs for security
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: todo-app-user
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: todo-app-user
+    app.kubernetes.io/part-of: todo-chatbot
+    strimzi.io/cluster: todo-chatbot-kafka
+spec:
+  authentication:
+    type: tls
+  authorization:
+    type: simple
+    acls:
+      # Backend application permissions
+      - resource:
+          type: topic
+          name: todo-events
+          patternType: literal
+        operation: Write
+      - resource:
+          type: topic
+          name: chat-events
+          patternType: literal
+        operation: Write
+      - resource:
+          type: topic
+          name: user-events
+          patternType: literal
+        operation: Write
+      - resource:
+          type: topic
+          name: dlq
+          patternType: literal
+        operation: Write
+
+      # Consumer permissions
+      - resource:
+          type: topic
+          name: todo-events
+          patternType: literal
+        operation: Read
+      - resource:
+          type: topic
+          name: chat-events
+          patternType: literal
+        operation: Read
+      - resource:
+          type: topic
+          name: user-events
+          patternType: literal
+        operation: Read
+      - resource:
+          type: topic
+          name: analytics-events
+          patternType: literal
+        operation: Read
+
+      # Group permissions
+      - resource:
+          type: group
+          name: todo-app-consumer
+          patternType: literal
+        operation: Read
+      - resource:
+          type: group
+          name: analytics-consumer
+          patternType: literal
+        operation: Read
+
+      # Transaction permissions
+      - resource:
+          type: transactionalId
+          name: todo-app-*
+          patternType: prefixed
+        operation: Write
+
+---
+# Analytics Consumer User
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: analytics-user
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: analytics-user
+    app.kubernetes.io/part-of: todo-chatbot
+    strimzi.io/cluster: todo-chatbot-kafka
+spec:
+  authentication:
+    type: tls
+  authorization:
+    type: simple
+    acls:
+      # Analytics permissions
+      - resource:
+          type: topic
+          name: todo-events
+          patternType: literal
+        operation: Read
+      - resource:
+          type: topic
+          name: chat-events
+          patternType: literal
+        operation: Read
+      - resource:
+          type: topic
+          name: user-events
+          patternType: literal
+        operation: Read
+      - resource:
+          type: topic
+          name: analytics-events
+          patternType: literal
+        operation: Write
+
+      # Group permissions
+      - resource:
+          type: group
+          name: analytics-processor
+          patternType: literal
+        operation: Read
+
+      # Transaction permissions
+      - resource:
+          type: transactionalId
+          name: analytics-*
+          patternType: prefixed
+        operation: Write
