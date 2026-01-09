@@ -1,0 +1,200 @@
+# Phase V: Enterprise Cloud Deployment
+# Environment Configuration Workflow
+#
+# [Task]: T035-T036
+# [From]: speckit.specify §3.4, speckit.plan §2.4
+
+---
+name: Environment Configuration
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+      environment:
+        description: 'Environment to configure'
+        required: true
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      region:
+        description: 'DigitalOcean region'
+        required: false
+        default: 'nyc1'
+        type: choice
+        options:
+          - nyc1
+          - nyc3
+          - sfo3
+          - ams3
+          - fra1
+          - lon1
+          - sg1
+          - syd1
+
+env:
+  TERRAFORM_DIR: 'Phase-V-Cloud-Deployment/terraform'
+  APP_NAME: 'todo-chatbot'
+
+jobs:
+  configure-environment:
+    name: Configure ${{ github.event.inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+    defaults:
+      run:
+        working-directory: ${{ env.TERRAFORM_DIR }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.5.7'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Determine Workspace
+        id: workspace
+        run: |
+          WORKSPACE="${{ github.event.inputs.environment }}"
+          echo "workspace=$WORKSPACE" >> $GITHUB_OUTPUT
+          terraform workspace select $WORKSPACE || terraform workspace new $WORKSPACE
+
+      - name: Configure Environment Variables
+        id: config
+        run: |
+          # Create terraform.tfvars for environment
+          cat > terraform.tfvars <<EOF
+          do_token = "${{ secrets.DO_TOKEN }}"
+          cluster_name = "{{ env.APP_NAME }}-${{ github.event.inputs.environment }}"
+          cluster_region = "${{ github.event.inputs.region }}"
+          environment = "${{ github.event.inputs.environment }}"
+          node_size = "${{ env.NODE_SIZE }}"
+          min_nodes = ${{ env.MIN_NODES }}
+          max_nodes = ${{ env.MAX_NODES }}
+          EOF
+
+          # Set environment-specific values
+          case ${{ github.event.inputs.environment }} in
+            development)
+              echo "NODE_SIZE=s-1vcpu-1gb" >> $GITHUB_ENV
+              echo "MIN_NODES=1" >> $GITHUB_ENV
+              echo "MAX_NODES=2" >> $GITHUB_ENV
+              ;;
+            staging)
+              echo "NODE_SIZE=s-2vcpu-4gb" >> $GITHUB_ENV
+              echo "MIN_NODES=2" >> $GITHUB_ENV
+              echo "MAX_NODES=5" >> $GITHUB_ENV
+              ;;
+            production)
+              echo "NODE_SIZE=s-2vcpu-4gb" >> $GITHUB_ENV
+              echo "MIN_NODES=3" >> $GITHUB_ENV
+              echo "MAX_NODES=10" >> $GITHUB_ENV
+              ;;
+          esac
+
+      - name: Initialize Terraform
+        run: terraform init
+
+      - name: Plan Infrastructure
+        if: github.event.inputs.action == 'plan'
+        id: plan
+        run: terraform plan -input=false -out=tfplan
+
+      - name: Apply Infrastructure
+        if: github.event.inputs.action == 'apply'
+        run: terraform apply -input=false tfplan
+
+      - name: Destroy Infrastructure
+        if: github.event.inputs.action == 'destroy'
+        run: terraform destroy -auto-approve
+
+      - name: Output Configuration
+        if: always() && github.event.inputs.action != 'destroy'
+        run: |
+          terraform output -json > outputs.json
+          cat outputs.json
+
+      - name: Generate Kubeconfig
+        if: github.event.inputs.action == 'apply'
+        run: |
+          terraform output -raw kubeconfig > kubeconfig.yaml
+          echo "KUBECONFIG_PATH=kubeconfig.yaml" >> $GITHUB_OUTPUT
+
+      - name: Upload Kubeconfig
+        if: github.event.inputs.action == 'apply'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kubeconfig-${{ github.event.inputs.environment }}
+          path: kubeconfig.yaml
+          retention-days: 1
+
+      - name: Update Secrets
+        if: github.event.inputs.action == 'apply'
+        uses: dxfx/secret-to-kustomize@v1
+        with:
+          source: outputs.json
+          output: kustomize/overlays/${{ github.event.inputs.environment }}
+
+  generate-secrets:
+    name: Generate Secrets
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate Random Secrets
+        id: secrets
+        run: |
+          # Generate database password
+          DB_PASSWORD=$(openssl rand -base64 32)
+          echo "database_password=$DB_PASSWORD" >> $GITHUB_OUTPUT
+
+          # Generate JWT secret
+          JWT_SECRET=$(openssl rand -base64 64)
+          echo "jwt_secret=$JWT_SECRET" >> $GITHUB_OUTPUT
+
+          # Generate Redis password
+          REDIS_PASSWORD=$(openssl rand -base64 32)
+          echo "redis_password=$REDIS_PASSWORD" >> $GITHUB_OUTPUT
+
+      - name: Create Secret Manifest
+        run: |
+          cat > secrets.yaml <<EOF
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: todo-chatbot-secrets
+            namespace: default
+          type: Opaque
+          data:
+            database-url: ${{ secrets.DATABASE_URL }}
+            database-password: ${{ steps.secrets.outputs.database_password }}
+            jwt-secret-key: ${{ steps.secrets.outputs.jwt_secret }}
+            openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          EOF
+
+      - name: Upload Secrets Manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: secrets-manifest
+          path: secrets.yaml
+          retention-days: 1
