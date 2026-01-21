@@ -7,13 +7,14 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:800
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { userId: string; taskId: string } }
+  { params }: { params: Promise<{ userId: string; taskId: string }> }
 ) {
   try {
+    const { userId, taskId } = await params;
     const token = request.headers.get('authorization');
 
     const response = await fetch(
-      `${BACKEND_URL}/api/${params.userId}/tasks/${params.taskId}/complete`,
+      `${BACKEND_URL}/api/${userId}/tasks/${taskId}/complete`,
       {
         method: 'PATCH',
         headers: {

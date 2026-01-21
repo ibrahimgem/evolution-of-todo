@@ -286,7 +286,7 @@ class ApiClient {
    * @throws ApiError on network or authentication errors
    */
   async getTasks(userId: number): Promise<TaskRead[]> {
-    const response = await fetch(`/api/tasks/${userId}`, {
+    const response = await fetch(`${this.baseUrl}/api/${userId}/tasks`, {
       method: 'GET',
       headers: this.getHeaders(),
     });
@@ -305,7 +305,7 @@ class ApiClient {
     userId: number,
     taskData: { title: string; description?: string }
   ): Promise<TaskRead> {
-    const response = await fetch(`/api/tasks/${userId}`, {
+    const response = await fetch(`${this.baseUrl}/api/${userId}/tasks`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(taskData),
@@ -327,7 +327,7 @@ class ApiClient {
     taskId: number,
     taskData: { title?: string; description?: string; completed?: boolean }
   ): Promise<TaskRead> {
-    const response = await fetch(`/api/tasks/${userId}/${taskId}`, {
+    const response = await fetch(`${this.baseUrl}/api/${userId}/tasks/${taskId}`, {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(taskData),
@@ -343,7 +343,7 @@ class ApiClient {
    * @throws ApiError if task not found or access denied
    */
   async deleteTask(userId: number, taskId: number): Promise<void> {
-    const response = await fetch(`/api/tasks/${userId}/${taskId}`, {
+    const response = await fetch(`${this.baseUrl}/api/${userId}/tasks/${taskId}`, {
       method: 'DELETE',
       headers: this.getHeaders(),
     });
@@ -359,7 +359,7 @@ class ApiClient {
    * @throws ApiError if task not found or access denied
    */
   async toggleTaskComplete(userId: number, taskId: number): Promise<TaskRead> {
-    const response = await fetch(`/api/tasks/${userId}/${taskId}/complete`, {
+    const response = await fetch(`${this.baseUrl}/api/${userId}/tasks/${taskId}/complete`, {
       method: 'PATCH',
       headers: this.getHeaders(),
     });

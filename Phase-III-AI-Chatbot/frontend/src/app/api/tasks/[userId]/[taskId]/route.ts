@@ -7,14 +7,15 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:800
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { userId: string; taskId: string } }
+  { params }: { params: Promise<{ userId: string; taskId: string }> }
 ) {
   try {
+    const { userId, taskId } = await params;
     const token = request.headers.get('authorization');
     const body = await request.json();
 
     const response = await fetch(
-      `${BACKEND_URL}/api/${params.userId}/tasks/${params.taskId}`,
+      `${BACKEND_URL}/api/${userId}/tasks/${taskId}`,
       {
         method: 'PUT',
         headers: {
@@ -46,13 +47,14 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { userId: string; taskId: string } }
+  { params }: { params: Promise<{ userId: string; taskId: string }> }
 ) {
   try {
+    const { userId, taskId } = await params;
     const token = request.headers.get('authorization');
 
     const response = await fetch(
-      `${BACKEND_URL}/api/${params.userId}/tasks/${params.taskId}`,
+      `${BACKEND_URL}/api/${userId}/tasks/${taskId}`,
       {
         method: 'DELETE',
         headers: {

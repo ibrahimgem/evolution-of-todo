@@ -7,12 +7,13 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:800
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
+    const { userId } = await params;
     const token = request.headers.get('authorization');
 
-    const response = await fetch(`${BACKEND_URL}/api/${params.userId}/tasks`, {
+    const response = await fetch(`${BACKEND_URL}/api/${userId}/tasks`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -41,13 +42,14 @@ export async function GET(
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
+    const { userId } = await params;
     const token = request.headers.get('authorization');
     const body = await request.json();
 
-    const response = await fetch(`${BACKEND_URL}/api/${params.userId}/tasks`, {
+    const response = await fetch(`${BACKEND_URL}/api/${userId}/tasks`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
