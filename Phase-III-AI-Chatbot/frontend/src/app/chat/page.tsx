@@ -6,9 +6,10 @@ import { ConversationList } from '../../components/ConversationList';
 import { ChatMessage as ChatMessageComponent } from '../../components/ChatMessage';
 import type { Conversation, ChatMessage, ChatResponse, ToolCall } from '../../types/chat';
 import { apiClient } from '../../lib/api-client';
-import { MessageCircle, Send, Loader2, Layout, X, XCircle, Calendar, LogOut } from 'lucide-react';
+import { MessageCircle, Send, Loader2, Layout, X, XCircle, Calendar, LogOut, CheckSquare } from 'lucide-react';
 import { TaskList } from '../../components/TaskList';
 import type { Task } from '../../components/TaskList';
+import Link from 'next/link';
 
 /**
  * Chat Page - Main chat interface with AI assistant
@@ -428,6 +429,14 @@ export default function ChatPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Link
+              href="/tasks"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              title="Task Manager"
+              aria-label="Go to Task Manager"
+            >
+              <CheckSquare className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            </Link>
             <button
               onClick={toggleTaskOverlay}
               className={`p-2 rounded-lg transition-colors ${
