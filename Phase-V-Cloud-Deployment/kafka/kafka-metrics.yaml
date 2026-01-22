@@ -1,0 +1,326 @@
+# Phase V: Enterprise Cloud Deployment
+# Kafka Metrics Configuration for Prometheus Monitoring
+#
+# [Task]: T015, T020
+# [From]: speckit.specify §3.2, speckit.plan §2.2, §4.2
+
+---
+# Kafka Metrics ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-metrics
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: kafka-metrics
+    app.kubernetes.io/part-of: todo-chatbot
+data:
+  kafka-metrics-config.yml: |
+    lowercaseOutputName: true
+    rules:
+      # Broker metrics
+      - pattern: kafka.server<type=(.+)><>(.+):(.+)
+        name: kafka_server_$1_$2_$3
+        type: GAUGE
+
+      # Topic metrics
+      - pattern: kafka.server<type=BrokerTopicMetrics><topic=(.+)><>(.+)
+        name: kafka_server_broker_topic_$2
+        labels:
+          topic: "$1"
+        type: GAUGE
+
+      # Partition metrics
+      - pattern: kafka.server<type=ReplicaManager><>(.+)
+        name: kafka_server_replica_manager_$1
+        type: GAUGE
+
+      # Request metrics
+      - pattern: kafka.server<type=BrokerTopicMetrics><>(.+)
+        name: kafka_server_broker_topic_$1
+        type: GAUGE
+
+      # Network processor metrics
+      - pattern: kafka.network<type=Processor><networkProcessor=(.+)><>(.+)
+        name: kafka_network_processor_$2
+        labels:
+          processor: "$1"
+        type: GAUGE
+
+      # Request handler metrics
+      - pattern: kafka.server<type=KafkaRequestHandlerPool><>(.+)
+        name: kafka_server_request_handler_$1
+        type: GAUGE
+
+      # JVM metrics
+      - pattern: java.lang<type=Memory><name=(.+)><>(.+)
+        name: kafka_jvm_memory_$2
+        labels:
+          area: "$1"
+        type: GAUGE
+
+      - pattern: java.lang<type=OperatingSystem><>(.+)
+        name: kafka_jvm_os_$1
+        type: GAUGE
+
+      - pattern: java.lang<type=Threading><>(.+)
+        name: kafka_jvm_threading_$1
+        type: GAUGE
+
+      # JVM garbage collection
+      - pattern: java.lang<type=GarbageCollector, name=(.+)><>(.+)
+        name: kafka_jvm_gc_$2
+        labels:
+          collector: "$1"
+        type: GAUGE
+
+  kafka-connect-metrics-config.yml: |
+    lowercaseOutputName: true
+    rules:
+      # Connect worker metrics
+      - pattern: kafka.connect<type=connect-worker-metrics><>(.+)
+        name: kafka_connect_worker_$1
+        type: GAUGE
+
+      # Connect runtime metrics
+      - pattern: kafka.connect<type=connect-runtime-metrics><>(.+)
+        name: kafka_connect_runtime_$1
+        type: GAUGE
+
+      # Task metrics
+      - pattern: kafka.connect<type=task-metrics, connector=(.+)><task=(.+)><>(.+)
+        name: kafka_connect_task_$3
+        labels:
+          connector: "$1"
+          task: "$2"
+        type: GAUGE
+
+      # Source task metrics
+      - pattern: kafka.connect<type=source-task-metrics, connector=(.+)><task=(.+)><>(.+)
+        name: kafka_connect_source_task_$3
+        labels:
+          connector: "$1"
+          task: "$2"
+        type: GAUGE
+
+      # Sink task metrics
+      - pattern: kafka.connect<type=sink-task-metrics, connector=(.+)><task=(.+)><>(.+)
+        name: kafka_connect_sink_task_$3
+        labels:
+          connector: "$1"
+          task: "$2"
+        type: GAUGE
+
+  kafka-bridge-metrics-config.yml: |
+    lowercaseOutputName: true
+    rules:
+      # Bridge metrics
+      - pattern: kafka.bridge<type=bridge-metrics><>(.+)
+        name: kafka_bridge_$1
+        type: GAUGE
+
+      # HTTP metrics
+      - pattern: kafka.bridge<type=http-metrics><>(.+)
+        name: kafka_bridge_http_$1
+        type: GAUGE
+
+      # Consumer metrics
+      - pattern: kafka.bridge<type=consumer-metrics><>(.+)
+        name: kafka_bridge_consumer_$1
+        type: GAUGE
+
+      # Producer metrics
+      - pattern: kafka.bridge<type=producer-metrics><>(.+)
+        name: kafka_bridge_producer_$1
+        type: GAUGE
+
+---
+# Kafka JMX Exporter Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-jmx-exporter-config
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: kafka-jmx-exporter-config
+    app.kubernetes.io/part-of: todo-chatbot
+data:
+  jmx-exporter-config.yaml: |
+    lowercaseOutputName: true
+    rules:
+      # Kafka Broker JMX metrics
+      - pattern: kafka.server<type=(.+)><>(.+)
+        name: kafka_server_$1_$2
+        type: GAUGE
+
+      - pattern: kafka.server<type=(.+), name=(.+)><>(Value|OneMinuteRate|MeanRate|Count)
+        name: kafka_server_$1_$2_$3
+        type: GAUGE
+
+      - pattern: kafka.server<type=(.+), name=(.+), topic=(.+)><>(Value|OneMinuteRate|MeanRate|Count)
+        name: kafka_server_$1_$2_$4
+        labels:
+          topic: "$3"
+        type: GAUGE
+
+      - pattern: kafka.server<type=ReplicaManager><>(.+(?:Isr|Leader|Partition))
+        name: kafka_server_replica_manager_$1
+        type: GAUGE
+
+      - pattern: kafka.server<type=ReplicaManager><>(.+)
+        name: kafka_server_replica_manager_$1
+        type: GAUGE
+
+      # Kafka Controller JMX metrics
+      - pattern: kafka.controller<type=(.+)><>(.+)
+        name: kafka_controller_$1_$2
+        type: GAUGE
+
+      # JVM metrics
+      - pattern: java.lang<type=Memory><name=(.+)><>(.+)
+        name: kafka_jvm_memory_$2
+        labels:
+          area: "$1"
+        type: GAUGE
+
+      - pattern: java.lang<type=OperatingSystem><>(.+)
+        name: kafka_jvm_os_$1
+        type: GAUGE
+
+      - pattern: java.lang<type=Threading><>(.+)
+        name: kafka_jvm_threading_$1
+        type: GAUGE
+
+      # JVM garbage collection
+      - pattern: java.lang<type=GarbageCollector, name=(.+)><>(.+)
+        name: kafka_jvm_gc_$2
+        labels:
+          collector: "$1"
+        type: GAUGE
+
+      # JVM class loading
+      - pattern: java.lang<type=ClassLoading><>(.+)
+        name: kafka_jvm_class_loading_$1
+        type: GAUGE
+
+      # JVM compilation
+      - pattern: java.lang<type=Compilation><>(.+)
+        name: kafka_jvm_compilation_$1
+        type: GAUGE
+
+---
+# Kafka Dashboard ConfigMap (for Grafana)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-dashboard-config
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: kafka-dashboard-config
+    app.kubernetes.io/part-of: todo-chatbot
+data:
+  kafka-dashboard.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "Todo Chatbot Kafka Dashboard",
+        "tags": ["kafka", "todo-chatbot"],
+        "timezone": "browser",
+        "refresh": "30s",
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "panels": [
+          {
+            "id": 1,
+            "title": "Broker Overview",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "count(kafka_server_replica_manager_leader_count)",
+                "legendFormat": "Number of Brokers"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "color": {
+                  "mode": "text"
+                },
+                "mappings": []
+              }
+            }
+          },
+          {
+            "id": 2,
+            "title": "Topic Messages/sec",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(kafka_server_broker_topic_messages_in_per_sec[5m])",
+                "legendFormat": "{{topic}}"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "title": "Partition Count",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "kafka_server_replica_manager_partition_count",
+                "legendFormat": "Total Partitions"
+              },
+              {
+                "expr": "kafka_server_replica_manager_leader_count",
+                "legendFormat": "Leader Partitions"
+              },
+              {
+                "expr": "kafka_server_replica_manager_replica_count",
+                "legendFormat": "Replica Partitions"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "title": "JVM Heap Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "kafka_jvm_memory_heap_used / kafka_jvm_memory_heap_max * 100",
+                "legendFormat": "Heap Usage %"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "title": "Request Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(kafka_server_broker_topic_requests_per_sec{request="Produce"}[5m])",
+                "legendFormat": "Produce Requests/sec"
+              },
+              {
+                "expr": "rate(kafka_server_broker_topic_requests_per_sec{request="Fetch"}[5m])",
+                "legendFormat": "Fetch Requests/sec"
+              }
+            ]
+          }
+        ]
+      }
+    }
+
+  kafka-dashboard-config.json: |
+    {
+      "dashboard": {
+        "title": "Kafka Monitoring",
+        "tags": ["kafka", "monitoring"],
+        "timezone": "browser",
+        "refresh": "30s",
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        }
+      }
+    }

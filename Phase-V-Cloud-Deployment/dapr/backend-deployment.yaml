@@ -1,0 +1,594 @@
+# Phase V: Enterprise Cloud Deployment
+# Backend Deployment with Dapr Sidecar
+#
+# [Task]: T027
+# [From]: speckit.specify §3.3, speckit.plan §2.3
+
+---
+# Backend Deployment with Dapr Sidecar
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-chatbot-backend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-backend
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: todo-chatbot-backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: todo-chatbot-backend
+        app.kubernetes.io/part-of: todo-chatbot
+        app.kubernetes.io/version: "1.0.0"
+        app.kubernetes.io/component: backend
+      annotations:
+        # Dapr Sidecar Configuration
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "todo-chatbot-backend"
+        dapr.io/app-port: "3000"
+        dapr.io/config: "todo-chatbot-config"
+        dapr.io/metrics-port: "9090"
+        dapr.io/log-level: "info"
+        dapr.io/log-as-json: "false"
+        dapr.io/max-concurrency: "10"
+        dapr.io/http-max-request-size: "1048576"
+        dapr.io/http-read-buffer-size: "65536"
+        dapr.io/grpc-app-port: "50001"
+        dapr.io/grpc-max-concurrency: "10"
+        dapr.io/enable-api-logging: "true"
+        dapr.io/app-ssl: "false"
+
+        # Dapr Pub/Sub Configuration
+        dapr.io/pubsub-name: "pubsub-kafka"
+
+        # Dapr State Store Configuration
+        dapr.io/state-store: "statestore"
+
+        # Dapr Secret Store Configuration
+        dapr.io/secret-store: "kubernetes-secrets"
+
+        # Prometheus Metrics
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+
+        # Istio Sidecar (if using service mesh)
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: todo-chatbot-backend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: backend
+          image: todo-chatbot-backend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+              name: http
+              protocol: TCP
+            - containerPort: 50001
+              name: grpc
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "3000"
+            - name: ENVIRONMENT
+              value: "production"
+
+            # Database Configuration (from Kubernetes Secret)
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: todo-chatbot-secrets
+                  key: database-url
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: todo-chatbot-secrets
+                  key: database-password
+
+            # JWT Configuration
+            - name: JWT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: todo-chatbot-secrets
+                  key: jwt-secret-key
+            - name: JWT_EXPIRATION_HOURS
+              value: "24"
+
+            # OpenAI Configuration
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: todo-chatbot-secrets
+                  key: openai-api-key
+            - name: OPENAI_MODEL
+              value: "gpt-4"
+            - name: OPENAI_EMBEDDING_MODEL
+              value: "text-embedding-3-small"
+
+            # Redis Configuration (Dapr State Store)
+            - name: REDIS_HOST
+              value: "redis.default.svc.cluster.local:6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: redis-password
+
+            # Kafka Configuration (Dapr Pub/Sub)
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "todo-chatbot-kafka-kafka-bootstrap.kafka.svc.cluster.local:9093"
+            - name: KAFKA_TOPIC_PREFIX
+              value: "todo-"
+
+            # Dapr Configuration
+            - name: DAPR_HTTP_PORT
+              value: "3500"
+            - name: DAPR_GRPC_PORT
+              value: "50001"
+            - name: DAPR_APP_ID
+              value: "todo-chatbot-backend"
+            - name: DAPR_CONFIG
+              value: "todo-chatbot-config"
+            - name: DAPR_STATE_STORE
+              value: "statestore"
+            - name: DAPR_PUBSUB
+              value: "pubsub-kafka"
+
+            # Application Configuration
+            - name: LOG_LEVEL
+              value: "info"
+            - name: MAX_CONNECTIONS
+              value: "100"
+            - name: REQUEST_TIMEOUT
+              value: "30"
+            - name: RATE_LIMIT_WINDOW
+              value: "60"
+            - name: RATE_LIMIT_MAX
+              value: "100"
+
+          # Health Check
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          # Resource Limits
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+
+          # Security Context
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+
+          # Volume Mounts
+          volumeMounts:
+            - name: backend-storage
+              mountPath: /tmp
+            - name: dapr-sidecar
+              mountPath: /tmp/dapr
+            - name: backend-config
+              mountPath: /app/config
+
+      volumes:
+        - name: backend-storage
+          emptyDir: {}
+        - name: dapr-sidecar
+          emptyDir: {}
+        - name: backend-config
+          configMap:
+            name: todo-chatbot-backend-config
+
+      # Pod Disruption Budget
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - todo-chatbot-backend
+                topologyKey: kubernetes.io/hostname
+
+      # Termination Grace Period
+      terminationGracePeriodSeconds: 30
+
+---
+# Backend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-chatbot-backend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-backend
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/component: backend
+  annotations:
+    dapr.io/enabled: "true"
+    dapr.io/app-id: "todo-chatbot-backend"
+    dapr.io/metrics-port: "9090"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+      appProtocol: http
+    - port: 50001
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+      appProtocol: grpc
+  selector:
+    app.kubernetes.io/name: todo-chatbot-backend
+
+---
+# Backend Headless Service for gRPC
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-chatbot-backend-headless
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-backend-headless
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/component: backend
+spec:
+  clusterIP: None
+  ports:
+    - port: 3000
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: 3500
+      targetPort: dapr-http
+      protocol: TCP
+      name: dapr-http
+    - port: 50001
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+  selector:
+    app.kubernetes.io/name: todo-chatbot-backend
+
+---
+# Backend Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: todo-chatbot-backend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-backend
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: todo-chatbot-backend
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+    - type: Pods
+      pods:
+        metric:
+          name: http_requests_per_second
+        target:
+          type: AverageValue
+          averageValue: "100"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+        - type: Pods
+          value: 4
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+
+---
+# Backend Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: todo-chatbot-backend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-backend
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: todo-chatbot-backend
+
+---
+# Backend Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: todo-chatbot-backend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-backend
+    app.kubernetes.io/part-of: todo-chatbot
+
+---
+# Backend Role for Kubernetes Secret Access
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: todo-chatbot-backend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-backend
+    app.kubernetes.io/part-of: todo-chatbot
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "create", "update", "delete"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update"]
+
+---
+# Backend Role Binding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: todo-chatbot-backend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-backend
+    app.kubernetes.io/part-of: todo-chatbot
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: todo-chatbot-backend
+subjects:
+  - kind: ServiceAccount
+    name: todo-chatbot-backend
+    namespace: default
+
+---
+# ConfigMap for Backend Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: todo-chatbot-backend-config
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-backend-config
+    app.kubernetes.io/part-of: todo-chatbot
+data:
+  # Environment Configuration
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "info"
+  DEBUG_MODE: "false"
+
+  # Server Configuration
+  HOST: "0.0.0.0"
+  PORT: "3000"
+  WORKERS: "4"
+  MAX_CONNECTIONS: "100"
+  REQUEST_TIMEOUT: "30"
+
+  # Database Configuration
+  DATABASE_TYPE: "postgresql"
+  DATABASE_POOL_SIZE: "10"
+  DATABASE_MAX_OVERFLOW: "20"
+  DATABASE_POOL_TIMEOUT: "30"
+
+  # Redis Configuration
+  REDIS_HOST: "redis.default.svc.cluster.local:6379"
+  REDIS_DB: "0"
+  REDIS_KEY_PREFIX: "todo:"
+  REDIS_TTL: "3600"
+
+  # Kafka Configuration
+  KAFKA_CONSUMER_GROUP: "todo-chatbot-group"
+  KAFKA_AUTO_OFFSET_RESET: "earliest"
+  KAFKA_ENABLE_AUTO_COMMIT: "false"
+
+  # JWT Configuration
+  JWT_ALGORITHM: "HS256"
+  JWT_EXPIRATION_HOURS: "24"
+  JWT_REFRESH_EXPIRATION_DAYS: "7"
+
+  # Rate Limiting
+  RATE_LIMIT_WINDOW: "60"
+  RATE_LIMIT_MAX: "100"
+  RATE_LIMIT_SKIP_FAILED_REQUESTS: "true"
+
+  # CORS Configuration
+  CORS_ORIGINS: "https://www.todo-chatbot.example.com"
+  CORS_ALLOW_CREDENTIALS: "true"
+
+  # Feature Flags
+  ENABLE_CHATBOT: "true"
+  ENABLE_ANALYTICS: "true"
+  ENABLE_RATE_LIMITING: "true"
+  ENABLE_CIRCUIT_BREAKER: "true"
+
+  # Dapr Configuration
+  DAPR_APP_ID: "todo-chatbot-backend"
+  DAPR_CONFIG: "todo-chatbot-config"
+  DAPR_STATE_STORE: "statestore"
+  DAPR_PUBSUB: "pubsub-kafka"
+
+---
+# Backend Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: todo-chatbot-backend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-backend
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: todo-chatbot-backend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: default
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: todo-chatbot-frontend
+      ports:
+        - protocol: TCP
+          port: 3000
+        - protocol: TCP
+          port: 50001
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: dapr-system
+      ports:
+        - protocol: TCP
+          port: 3500
+        - protocol: TCP
+          port: 50001
+        - protocol: TCP
+          port: 50002
+        - protocol: TCP
+          port: 9090
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: dapr-system
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 50001
+        - protocol: TCP
+          port: 50002
+        - protocol: TCP
+          port: 9090
+        - protocol: TCP
+          port: 4000
+        - protocol: TCP
+          port: 50005
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kafka
+      ports:
+        - protocol: TCP
+          port: 9093
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: default
+          podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 14250
+        - protocol: TCP
+          port: 9411
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443  # HTTPS for OpenAI API
+        - protocol: TCP
+          port: 80   # HTTP for external APIs
+        - protocol: TCP
+          port: 53   # DNS
+        - protocol: UDP
+          port: 53   # DNS
+
+---
+# Secrets for Backend
+apiVersion: v1
+kind: Secret
+metadata:
+  name: todo-chatbot-secrets
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-secrets
+    app.kubernetes.io/part-of: todo-chatbot
+type: Opaque
+data:
+  database-url: <base64-encoded-database-url>
+  database-password: <base64-encoded-database-password>
+  jwt-secret-key: <base64-encoded-jwt-secret>
+  openai-api-key: <base64-encoded-openai-api-key>
+
+# Note: Replace <base64-encoded-*> with base64 encoded values
+# Generate with: echo -n "your-value" | base64

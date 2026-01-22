@@ -1,0 +1,556 @@
+# Phase V: Enterprise Cloud Deployment
+# Jaeger Deployment for Distributed Tracing
+#
+# [Task]: T044, T049
+# [From]: speckit.specify §3.5, speckit.plan §2.5
+
+---
+# Jaeger ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jaeger-configuration
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: jaeger-configuration
+    app.kubernetes.io/part-of: todo-chatbot
+data:
+  collector.yaml: |
+    collector:
+      zipkin:
+        host-port: 9411
+      maxQueueSize: 10000
+      maxBatchSize: 10000
+      processors: 4
+
+  query.yaml: |
+    query:
+      basePath: /
+      httpServer:
+        port: 16686
+        readTimeout: 2s
+        writeTimeout: 2s
+
+  agent-config.yaml: |
+    agent:
+      reporters:
+        collectorSyncFlushTimeout: 1000
+        logSpans: false
+      zipkin:
+        hostPort: 9411
+      thrift:
+        http:
+          hostPort: 14268
+
+---
+# Jaeger Collector Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger-collector
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: jaeger-collector
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "1.52.0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jaeger-collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jaeger-collector
+        app.kubernetes.io/part-of: todo-chatbot
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "14269"
+    spec:
+      containers:
+        - name: jaeger-collector
+          image: jaegertracing/jaeger-operator:1.52.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --collector
+            - --collector.zipkin.host-port=9411
+            - --collector.num-workers=50
+            - --collector.queue-size=10000
+          ports:
+            - containerPort: 14250
+              name: grpc
+              protocol: TCP
+            - containerPort: 14268
+              name: http
+              protocol: TCP
+            - containerPort: 9411
+              name: zipkin
+              protocol: TCP
+            - containerPort: 14269
+              name: admin
+              protocol: TCP
+          env:
+            - name: SPAN_STORAGE_TYPE
+              value: "elasticsearch"
+            - name: ES_SERVER_URLS
+              value: "http://elasticsearch:9200"
+            - name: ES_INDEX_PREFIX
+              value: "jaeger"
+            - name: ES_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: elasticsearch-credentials
+                  key: username
+            - name: ES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elasticsearch-credentials
+                  key: password
+          livenessProbe:
+            httpGet:
+              path: /
+              port: admin
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: admin
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+
+---
+# Jaeger Query Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger-query
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: jaeger-query
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "1.52.0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jaeger-query
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jaeger-query
+        app.kubernetes.io/part-of: todo-chatbot
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "16687"
+    spec:
+      containers:
+        - name: jaeger-query
+          image: jaegertracing/jaeger-operator:1.52.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --query
+            - --query.base-path=/
+          ports:
+            - containerPort: 16686
+              name: query-http
+              protocol: TCP
+            - containerPort: 16687
+              name: admin
+              protocol: TCP
+          env:
+            - name: SPAN_STORAGE_TYPE
+              value: "elasticsearch"
+            - name: ES_SERVER_URLS
+              value: "http://elasticsearch:9200"
+            - name: ES_INDEX_PREFIX
+              value: "jaeger"
+            - name: ES_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: elasticsearch-credentials
+                  key: username
+            - name: ES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elasticsearch-credentials
+                  key: password
+          livenessProbe:
+            httpGet:
+              path: /
+              port: admin
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: admin
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "250m"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+
+---
+# Jaeger Agent DaemonSet
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: jaeger-agent
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: jaeger-agent
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "1.52.0"
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jaeger-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jaeger-agent
+        app.kubernetes.io/part-of: todo-chatbot
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "15020"
+    spec:
+      containers:
+        - name: jaeger-agent
+          image: jaegertracing/jaeger-agent:1.52.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --reporter.grpc.host-port=dns:///jaeger-collector:14250
+            - --processor.jaeger-compact.server-host-port=6831
+            - --processor.jaeger-compact.server-thrift-port=6832
+            - --processor.otlp-compact.server-port=4317
+          ports:
+            - containerPort: 6831
+              name: jaeger-compact
+              protocol: UDP
+            - containerPort: 6832
+              name: jaeger-thrift
+              protocol: UDP
+            - containerPort: 4317
+              name: otlp-grpc
+              protocol: TCP
+            - containerPort: 14250
+              name: grpc
+              protocol: TCP
+            - containerPort: 14251
+              name: http
+              protocol: TCP
+            - containerPort: 15020
+              name: admin
+              protocol: TCP
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "25m"
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+
+---
+# Jaeger Collector Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-collector
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: jaeger-collector
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  type: ClusterIP
+  ports:
+    - port: 14250
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+    - port: 14268
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: 9411
+      targetPort: zipkin
+      protocol: TCP
+      name: zipkin
+    - port: 14269
+      targetPort: admin
+      protocol: TCP
+      name: admin
+  selector:
+    app.kubernetes.io/name: jaeger-collector
+
+---
+# Jaeger Query Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-query
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: jaeger-query
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  type: ClusterIP
+  ports:
+    - port: 16686
+      targetPort: query-http
+      protocol: TCP
+      name: query-http
+    - port: 16687
+      targetPort: admin
+      protocol: TCP
+      name: admin
+  selector:
+    app.kubernetes.io/name: jaeger-query
+
+---
+# Jaeger Agent Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger-agent
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: jaeger-agent
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6831
+      targetPort: jaeger-compact
+      protocol: UDP
+      name: jaeger-compact
+    - port: 6832
+      targetPort: jaeger-thrift
+      protocol: UDP
+      name: jaeger-thrift
+    - port: 4317
+      targetPort: otlp-grpc
+      protocol: TCP
+      name: otlp-grpc
+    - port: 14250
+      targetPort: grpc
+      protocol: TCP
+      name: grpc
+  selector:
+    app.kubernetes.io/name: jaeger-agent
+
+---
+# Jaeger Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jaeger
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/part-of: todo-chatbot
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/auth-type: "basic"
+    nginx.ingress.kubernetes.io/auth-secret: "jaeger-basic-auth"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  tls:
+    - hosts:
+        - jaeger.todo-chatbot.example.com
+      secretName: jaeger-tls
+  rules:
+    - host: jaeger.todo-chatbot.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jaeger-query
+                port:
+                  number: 16686
+
+---
+# Jaeger Basic Auth Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jaeger-basic-auth
+  namespace: monitoring
+  type: Opaque
+data:
+  auth: <base64-encoded-htpasswd>
+
+---
+# Elasticsearch Credentials Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: elasticsearch-credentials
+  namespace: monitoring
+  type: Opaque
+data:
+  username: <base64-encoded-username>
+  password: <base64-encoded-password>
+
+---
+# Elasticsearch Deployment (for Jaeger span storage)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elasticsearch
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: elasticsearch
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "8.11.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: elasticsearch
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: elasticsearch
+        app.kubernetes.io/part-of: todo-chatbot
+    spec:
+      containers:
+        - name: elasticsearch
+          image: docker.io/library/elasticsearch:8.11.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: discovery.type
+              value: "single-node"
+            - name: ES_JAVA_OPTS
+              value: "-Xms512m -Xmx512m"
+            - name: xpack.security.enabled
+              value: "false"
+            - name: xpack.monitoring.enabled
+              value: "true"
+          ports:
+            - containerPort: 9200
+              name: http
+              protocol: TCP
+            - containerPort: 9300
+              name: transport
+              protocol: TCP
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          volumeMounts:
+            - name: elasticsearch-storage
+              mountPath: /usr/share/elasticsearch/data
+      volumes:
+        - name: elasticsearch-storage
+          persistentVolumeClaim:
+            claimName: elasticsearch-pvc
+
+---
+# Elasticsearch Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: elasticsearch
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9200
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: 9300
+      targetPort: transport
+      protocol: TCP
+      name: transport
+  selector:
+    app.kubernetes.io/name: elasticsearch
+
+---
+# Elasticsearch Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: elasticsearch-pvc
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: elasticsearch-pvc
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: do-block-storage
+
+---
+# Jaeger ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jaeger
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/part-of: todo-chatbot

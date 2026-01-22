@@ -1,0 +1,852 @@
+# Phase V: Enterprise Cloud Deployment
+# Strimzi Operator Installation for Apache Kafka
+#
+# [Task]: T011
+# [From]: speckit.specify §3.2, speckit.plan §2.2
+
+---
+# Namespace for Kafka resources
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kafka
+  labels:
+    name: kafka
+    app.kubernetes.io/name: strimzi
+    app.kubernetes.io/part-of: todo-chatbot
+---
+# Install Strimzi Operator
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: strimzi-cluster-operator
+  namespace: kafka
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: strimzi-entity-operator
+  namespace: kafka
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-entity-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - "*"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: strimzi-topic-operator
+  namespace: kafka
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-topic-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - "*"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: strimzi-cluster-operator
+  namespace: kafka
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: strimzi-cluster-operator
+subjects:
+  - kind: ServiceAccount
+    name: strimzi-cluster-operator
+    namespace: kafka
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: strimzi-cluster-operator-kafka-broker-delegation
+  namespace: kafka
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: strimzi-cluster-operator-kafka-broker
+subjects:
+  - kind: ServiceAccount
+    name: strimzi-cluster-operator
+    namespace: kafka
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: strimzi-cluster-operator-kafka-client-ca-cert-reader
+  namespace: kafka
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: strimzi-cluster-operator-kafka-client-ca-cert-reader
+subjects:
+  - kind: ServiceAccount
+    name: strimzi-cluster-operator
+    namespace: kafka
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: strimzi-cluster-operator-kafka-controller
+  namespace: kafka
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: strimzi-cluster-operator-kafka-controller
+subjects:
+  - kind: ServiceAccount
+    name: strimzi-cluster-operator
+    namespace: kafka
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: strimzi-cluster-operator-kafka-init
+  namespace: kafka
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: strimzi-cluster-operator-kafka-init
+subjects:
+  - kind: ServiceAccount
+    name: strimzi-cluster-operator
+    namespace: kafka
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: strimzi-cluster-operator-kafka-broker-network-policy
+  namespace: kafka
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: strimzi-cluster-operator-network-policy-controller
+subjects:
+  - kind: ServiceAccount
+    name: strimzi-cluster-operator
+    namespace: kafka
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: strimzi-cluster-operator-entity-operator-delegation
+  namespace: kafka
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: strimzi-entity-operator
+subjects:
+  - kind: ServiceAccount
+    name: strimzi-entity-operator
+    namespace: kafka
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: strimzi-cluster-operator-topic-operator-delegation
+  namespace: kafka
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: strimzi-topic-operator
+subjects:
+  - kind: ServiceAccount
+    name: strimzi-topic-operator
+    namespace: kafka
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: strimzi-cluster-operator-namespaced
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - events
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - serviceaccounts
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - services
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - endpoints
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - policy
+    resources:
+      - poddisruptionbudgets
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - replicasets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - kafka.strimzi.io
+    resources:
+      - kafkamirrormakers
+      - kafkamirrormakers/status
+    verbs:
+      - "*"
+  - apiGroups:
+      - kafka.strimzi.io
+    resources:
+      - kafkarebalances
+      - kafkarebalances/status
+    verbs:
+      - "*"
+  - apiGroups:
+      - kafka.strimzi.io
+    resources:
+      - kafkas
+      - kafkas/status
+    verbs:
+      - "*"
+  - apiGroups:
+      - kafka.strimzi.io
+    resources:
+      - kafkatopics
+      - kafkatopics/status
+    verbs:
+      - "*"
+  - apiGroups:
+      - kafka.strimzi.io
+    resources:
+      - kafkausers
+      - kafkausers/status
+    verbs:
+      - "*"
+  - apiGroups:
+      - kafka.strimzi.io
+    resources:
+      - kafkabridges
+      - kafkabridges/status
+    verbs:
+      - "*"
+  - apiGroups:
+      - kafka.strimzi.io
+    resources:
+      - kafkacollectors
+      - kafkacollectors/status
+    verbs:
+      - "*"
+  - apiGroups:
+      - kafka.strimzi.io
+    resources:
+      - kafkamirrormaker2s
+      - kafkamirrormaker2s/status
+    verbs:
+      - "*"
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - networkpolicies
+    verbs:
+      - create
+      - delete
+      - patch
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - serviceaccounts
+    resourceNames:
+      - strimzi-cluster-operator
+    verbs:
+      - get
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+      - delete
+      - patch
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - rolebindings
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - rbac.authorization.k8s.io
+    resources:
+      - roles
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - coord.k8s.io
+    resources:
+      - leases
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: strimzi-cluster-operator-kafka-broker
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - list
+      - delete
+      - deletecollection
+      - patch
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - extensions
+    resources:
+      - replicasets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - replicasets
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: strimzi-cluster-operator-kafka-client-ca-cert-reader
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: strimzi-cluster-operator-kafka-controller
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: strimzi-cluster-operator-kafka-init
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: strimzi-cluster-operator-network-policy-controller
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - networkpolicies
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+      - patch
+      - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: strimzi-cluster-operator
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: strimzi-cluster-operator-namespaced
+subjects:
+  - kind: ServiceAccount
+    name: strimzi-cluster-operator
+    namespace: kafka
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: strimzi-cluster-operator-kafka-broker-delegation
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: strimzi-cluster-operator-kafka-broker
+subjects:
+  - kind: ServiceAccount
+    name: strimzi-cluster-operator
+    namespace: kafka
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: strimzi-cluster-operator-kafka-client-ca-cert-reader-delegation
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: strimzi-cluster-operator-kafka-client-ca-cert-reader
+subjects:
+  - kind: ServiceAccount
+    name: strimzi-cluster-operator
+    namespace: kafka
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: strimzi-cluster-operator-kafka-controller-delegation
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: strimzi-cluster-operator-kafka-controller
+subjects:
+  - kind: ServiceAccount
+    name: strimzi-cluster-operator
+    namespace: kafka
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: strimzi-cluster-operator-kafka-init-delegation
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: strimzi-cluster-operator-kafka-init
+subjects:
+  - kind: ServiceAccount
+    name: strimzi-cluster-operator
+    namespace: kafka
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: strimzi-cluster-operator-kafka-broker-network-policy
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: strimzi-cluster-operator-network-policy-controller
+subjects:
+  - kind: ServiceAccount
+    name: strimzi-cluster-operator
+    namespace: kafka
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: strimzi-cluster-operator
+  namespace: kafka
+  labels:
+    app: strimzi
+    app.kubernetes.io/name: strimzi-cluster-operator
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.40.0"
+    app.kubernetes.io/managed-by: strimzi-operator
+    strimzi.io/cluster: strimzi-cluster-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: strimzi-cluster-operator
+      strimzi.io/kind: cluster-operator
+  template:
+    metadata:
+      labels:
+        name: strimzi-cluster-operator
+        strimzi.io/kind: cluster-operator
+    spec:
+      serviceAccountName: strimzi-cluster-operator
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+      containers:
+        - name: strimzi-cluster-operator
+          image: quay.io/strimzi/operator:0.40.0
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: STRIMZI_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: STRIMZI_FULL_RECONCILIATION_INTERVAL_MS
+              value: "120000"
+            - name: STRIMZI_KUBERNETES_WATCH_TIMEOUT_MS
+              value: "10"
+            - name: STRIMZI_OPERATION_TIMEOUT_MS
+              value: "300000"
+            - name: STRIMZI_FEATURE_GATES
+              value: "+UseKRaft:-UseStrimziPodSets"
+            - name: STRIMZI_LOG_LEVEL
+              value: "INFO"
+            - name: STRIMZI_EXTERNAL_CONFIGURATION_DIRECTORY
+              value: "/opt/strimzi/custom-config/"
+            - name: STRIMZI_JAVA_OPTS
+              value: "-Xms128m -Xmx256m"
+            - name: STRIMZI_JAVA_SYSTEM_PROPERTIES
+              value: "-Dvertx.cacheDirBase=/tmp -Djava.security.egd=file:/dev/./urandom"
+          livenessProbe:
+            httpGet:
+              path: /healthy
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - name: strimzi-cluster-operator-ca-cert
+              mountPath: /opt/strimzi/custom-config
+              readOnly: true
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          workingDir: /opt/strimzi
+        - name: tls-sidecar
+          image: registry.k8s.io/pause:3.1
+          ports:
+            - containerPort: 9090
+              name: tcp-admin
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: tcp-admin
+            initialDelaySeconds: 10
+            failureThreshold: 3
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: tcp-admin
+            initialDelaySeconds: 10
+            failureThreshold: 3
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          volumeMounts:
+            - name: strimzi-cluster-operator-ca-cert
+              mountPath: /tmp/kafka
+              readOnly: true
+          resources:
+            requests:
+              memory: "16Mi"
+              cpu: "10m"
+            limits:
+              memory: "16Mi"
+              cpu: "10m"
+      volumes:
+        - name: strimzi-cluster-operator-ca-cert
+          emptyDir:
+            medium: ""
+      terminationGracePeriodSeconds: 10
+      securityContext:
+        fsGroup: 0

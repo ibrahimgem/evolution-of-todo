@@ -1,0 +1,364 @@
+# Phase V: Enterprise Cloud Deployment
+# Apache Kafka Cluster Definition using Strimzi
+#
+# [Task]: T012
+# [From]: speckit.specify §3.2, speckit.plan §2.2
+
+---
+# Kafka Cluster CRD
+apiVersion: kafka.strimzi.io/v1beta2
+kind: Kafka
+metadata:
+  name: todo-chatbot-kafka
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: todo-chatbot-kafka
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "3.6.0"
+    strimzi.io/cluster: todo-chatbot-kafka
+spec:
+  kafka:
+    version: "3.6.0"
+    replicas: 3
+    listeners:
+      # Internal listener for services within the cluster
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+      # TLS listener for secure internal communication
+      - name: tls
+        port: 9093
+        type: internal
+        tls: true
+        authentication:
+          type: tls
+      # External listener (optional, for debugging)
+      - name: external
+        port: 9094
+        type: nodeport
+        tls: true
+        authentication:
+          type: tls
+    config:
+      # Broker configuration
+      offsets.topic.replication.factor: 3
+      transaction.state.log.replication.factor: 3
+      transaction.state.log.min.isr: 2
+      default.replication.factor: 3
+      min.insync.replicas: 2
+
+      # Performance tuning
+      num.network.threads: 8
+      num.io.threads: 8
+      socket.send.buffer.bytes: 102400
+      socket.receive.buffer.bytes: 102400
+      socket.request.max.bytes: 104857600
+
+      # Log retention
+      log.retention.hours: 168  # 7 days
+      log.segment.bytes: 1073741824  # 1GB
+      log.retention.check.interval.ms: 300000
+
+      # Compression
+      compression.type: gzip
+
+      # Security
+      authorizer.class.name: kafka.security.authorizer.AclAuthorizer
+      allow.everyone.if.no.acl.found: false
+      super.users: User:CN=cluster-operator
+
+      # Monitoring
+      metric.reporters: io.strimzi.kafka.metrics.KafkaMicrometerMetricsReporter
+      kafka.metrics.polling.interval.seconds: 5
+      kafka.metrics.jmx.enabled: true
+
+      # KRaft mode configuration
+      process.roles: [broker, controller]
+      node.id: 0
+      controller.quorum.voters: "0@todo-chatbot-kafka-kafka-0.todo-chatbot-kafka-kafka-brokers.kafka.svc:9093,1@todo-chatbot-kafka-kafka-1.todo-chatbot-kafka-kafka-brokers.kafka.svc:9093,2@todo-chatbot-kafka-kafka-2.todo-chatbot-kafka-kafka-brokers.kafka.svc:9093"
+      controller.quorum.bootstrap.servers: todo-chatbot-kafka-kafka-0.todo-chatbot-kafka-kafka-brokers.kafka.svc:9093,todo-chatbot-kafka-kafka-1.todo-chatbot-kafka-kafka-brokers.kafka.svc:9093,todo-chatbot-kafka-kafka-2.todo-chatbot-kafka-kafka-brokers.kafka.svc:9093
+      log.dirs: /var/lib/kafka/kraft-combined-logs
+
+    storage:
+      type: persistent-claim
+      size: 10Gi
+      class: do-block-storage
+      deleteClaim: false
+      overrides:
+        - brokers: 0
+          size: 20Gi
+        - brokers: [1, 2]
+          size: 10Gi
+
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+
+    jvmOptions:
+      -Xms1g: "-Xms1g"
+      -Xmx1g: "-Xmx1g"
+      -XX:MetaspaceSize=96m: "-XX:MetaspaceSize=96m"
+
+    metricsConfig:
+      type: jmxPrometheusExporter
+      valueFrom:
+        configMapKeyRef:
+          name: kafka-metrics
+          key: kafka-metrics-config.yml
+
+  zookeeper:
+    # KRaft mode - no Zookeeper needed
+    replicas: 0
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+  entityOperator:
+    topicOperator:
+      resources:
+        requests:
+          memory: "256Mi"
+          cpu: "250m"
+        limits:
+          memory: "512Mi"
+          cpu: "500m"
+
+    userOperator:
+      resources:
+        requests:
+          memory: "256Mi"
+          cpu: "250m"
+        limits:
+          memory: "512Mi"
+          cpu: "500m"
+
+  # Additional configuration for high availability
+  clusterCa:
+    generateCertificateAuthority: true
+    validityDays: 365
+    renewalDays: 30
+
+  clientCa:
+    generateCertificateAuthority: true
+    validityDays: 365
+    renewalDays: 30
+
+---
+# Kafka Connect (for data integration)
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaConnect
+metadata:
+  name: todo-chatbot-connect
+  namespace: kafka
+  annotations:
+    strimzi.io/use-connector-resources: "true"
+  labels:
+    app.kubernetes.io/name: todo-chatbot-connect
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  version: "3.6.0"
+  replicas: 2
+  bootstrapServers: todo-chatbot-kafka-kafka-bootstrap:9093
+  tls:
+    trustedCertificates:
+      - secretName: todo-chatbot-kafka-cluster-ca-cert
+        certificate: ca.crt
+  config:
+    group.id: todo-chatbot-connect-cluster
+    offset.storage.topic: connect-cluster-offsets
+    config.storage.topic: connect-cluster-configs
+    status.storage.topic: connect-cluster-status
+    config.storage.replication.factor: 3
+    offset.storage.replication.factor: 3
+    status.storage.replication.factor: 3
+    key.converter: org.apache.kafka.connect.storage.StringConverter
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    value.converter.schemas.enable: false
+    internal.key.converter: org.apache.kafka.connect.json.JsonConverter
+    internal.value.converter: org.apache.kafka.connect.json.JsonConverter
+    internal.key.converter.schemas.enable: false
+    internal.value.converter.schemas.enable: false
+    producer.compression.type: gzip
+    producer.linger.ms: 10
+    producer.batch.size: 32768
+    producer.buffer.memory: 67108864
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+  metricsConfig:
+    type: jmxPrometheusExporter
+    valueFrom:
+      configMapKeyRef:
+        name: kafka-metrics
+        key: kafka-connect-metrics-config.yml
+
+---
+# Kafka MirrorMaker (for future multi-region replication)
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaMirrorMaker2
+metadata:
+  name: todo-chatbot-mirror-maker
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: todo-chatbot-mirror-maker
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  version: "3.6.0"
+  replicas: 1
+  connectCluster: "todo-chatbot-kafka"
+  clusters:
+    - alias: "todo-chatbot-kafka"
+      bootstrapServers: todo-chatbot-kafka-kafka-bootstrap:9093
+      tls:
+        trustedCertificates:
+          - secretName: todo-chatbot-kafka-cluster-ca-cert
+            certificate: ca.crt
+  mirrors:
+    - sourceCluster: "todo-chatbot-kafka"
+      targetCluster: "todo-chatbot-kafka"
+      sourceConnector:
+        config:
+          replication.factor: 3
+          offset-syncs.topic.replication.factor: 3
+          sync.topic.acls.enabled: "false"
+      heartbeatConnector:
+        config:
+          heartbeats.topic.replication.factor: 3
+      checkpointConnector:
+        config:
+          checkpoints.topic.replication.factor: 3
+      topicsPattern: "todo-.*,chat-.*,user-.*"
+      groupsPattern: ".*"
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+---
+# Kafka Bridge (for REST API access)
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaBridge
+metadata:
+  name: todo-chatbot-bridge
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: todo-chatbot-bridge
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  version: "0.24.0"
+  replicas: 2
+  bootstrapServers: todo-chatbot-kafka-kafka-bootstrap:9093
+  http:
+    port: 8080
+  tls:
+    trustedCertificates:
+      - secretName: todo-chatbot-kafka-cluster-ca-cert
+        certificate: ca.crt
+  authentication:
+    type: tls
+  config:
+    acks: 1
+    producer.batch.size: 2048
+    producer.linger.ms: 10
+    consumer.fetch.min.bytes: 1024
+    producer.compression.type: gzip
+    producer.enable.idempotence: true
+
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+  metricsConfig:
+    type: jmxPrometheusExporter
+    valueFrom:
+      configMapKeyRef:
+        name: kafka-metrics
+        key: kafka-bridge-metrics-config.yml
+
+---
+# Network Policies for Kafka security
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kafka-network-policy
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: kafka-network-policy
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  podSelector:
+    matchLabels:
+      strimzi.io/name: todo-chatbot-kafka-kafka
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: kafka
+      ports:
+        - protocol: TCP
+          port: 9092
+        - protocol: TCP
+          port: 9093
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: default
+      ports:
+        - protocol: TCP
+          port: 9094
+  egress:
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 9092
+        - protocol: TCP
+          port: 9093
+        - protocol: TCP
+          port: 9094
+
+---
+# Service Monitor for Prometheus (if using Prometheus Operator)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: todo-chatbot-kafka-metrics
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: todo-chatbot-kafka-metrics
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  selector:
+    matchLabels:
+      strimzi.io/kind: Kafka
+      strimzi.io/name: todo-chatbot-kafka
+  endpoints:
+    - port: tcp-prometheus
+      path: /metrics
+      interval: 10s
+      scrapeTimeout: 10s

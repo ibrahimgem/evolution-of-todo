@@ -57,12 +57,12 @@ export default function Home() {
               </Link>
 
               <Link
-                href="/chat"
+                href="/tasks"
                 className="group px-8 py-4 rounded-xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border-2 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 active:scale-95 hover:border-blue-400 dark:hover:border-blue-500"
               >
                 <span className="flex items-center gap-2">
-                  Try as Guest
-                  <Sparkles className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                  Task Manager
+                  <CheckCircle2 className="w-5 h-5 group-hover:scale-110 transition-transform" />
                 </span>
               </Link>
             </div>

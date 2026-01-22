@@ -1,0 +1,318 @@
+# Phase V: Enterprise Cloud Deployment
+# Security Scanning Workflow
+#
+# [Task]: T034, T036
+# [From]: speckit.specify §3.4, speckit.plan §2.4
+
+---
+name: Security Scanning
+
+on:
+  schedule:
+    # Run weekly security scan
+    - cron: '0 0 * * 0'
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - '**/*.py'
+      - '**/*.js'
+      - '**/*.ts'
+      - '**/*.yaml'
+      - '**/*.yml'
+      - 'Dockerfile*'
+      - 'requirements*.txt'
+  pull_request:
+    paths:
+      - '**/*.py'
+      - '**/*.js'
+      - '**/*.ts'
+      - '**/*.yaml'
+      - '**/*.yml'
+      - 'Dockerfile*'
+      - 'requirements*.txt'
+  workflow_dispatch:
+
+env:
+  TRIVY_VERSION: '0.48.1'
+  HADOLINT_VERSION: '3.1.0'
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+
+jobs:
+  # =========================================================================
+  # DEPENDENCY SCANNING
+  # =========================================================================
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install and run safety
+        run: |
+          pip install safety
+          safety check -r requirements.txt -o safety-report.json || true
+
+      - name: Check for known vulnerabilities in dependencies
+        uses: pypa/pip-audit@main
+        with:
+          path: '.'
+          format: 'json'
+          output: 'pip-audit.json'
+
+      - name: Upload pip-audit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit
+          path: pip-audit.json
+          retention-days: 7
+
+      - name: Check npm dependencies
+        if: always()
+        working-directory: Phase-II-Full-Stack-Web-Application/frontend
+        run: |
+          npm audit --json > npm-audit.json || true
+
+      - name: Upload npm audit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit
+          path: Phase-II-Full-Stack-Web-Application/frontend/npm-audit.json
+          retention-days: 7
+
+  # =========================================================================
+  # DOCKERFILE SCANNING
+  # =========================================================================
+  dockerfile-scan:
+    name: Dockerfile Best Practices
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Hadolint
+        uses: hadolint/hadolint-action@v3.0.0
+        with:
+          dockerfile: '**/Dockerfile'
+          format: 'json'
+          output: 'hadolint-results.json'
+
+      - name: Upload Hadolint results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hadolint-results
+          path: hadolint-results.json
+          retention-days: 7
+
+      - name: Check Docker image vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'docker.io/library/python:3.11-slim'
+          severity: 'CRITICAL,HIGH'
+          format: 'sarif'
+          output: 'base-image-trivy.sarif'
+
+  # =========================================================================
+  # KUBERNETES MANIFEST SCANNING
+  # =========================================================================
+  k8s-scan:
+    name: Kubernetes Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/k8s-set-context@v4
+
+      - name: Install kubeval
+        run: |
+          pip install kubeval
+          kubeval --version
+
+      - name: Validate Kubernetes manifests
+        run: |
+          find Phase-IV-Local-K8s-Deployment -name "*.yaml" -exec kubeval {} \; || true
+
+      - name: Run kube-hunter
+        uses: aquasecurity/kube-hunter@main
+        with:
+          mode: 'quick'
+          report: 'kube-hunter-report.json'
+          kubeconfig: ${{ secrets.KUBECONFIG_STAGING }}
+
+      - name: Upload kube-hunter results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kube-hunter-report
+          path: kube-hunter-report.json
+          retention-days: 7
+
+      - name: Check for security issues with trivy k8s
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'k8s'
+          scan-ref: 'Phase-IV-Local-K8s-Deployment'
+          severity: 'CRITICAL,HIGH'
+          format: 'sarif'
+          output: 'k8s-trivy.sarif'
+
+  # =========================================================================
+  # SECRET SCANNING
+  # =========================================================================
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          config-path: .gitleaks.toml
+
+      - name: Run TruffleHog
+        uses: trufflesecurity/trufflehog-action@main
+        with:
+          path: .
+          extra_args: '--entropy=false --regex'
+
+      - name: Check for hardcoded secrets
+        uses: reviewdog/action-secretscadet@v1
+        with:
+          reporter: 'github-pr-check'
+          secrets_file_name: 'secrets.txt'
+
+  # =========================================================================
+  # CODE SECURITY SCANNING
+  # =========================================================================
+  code-scan:
+    name: Code Security Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install bandit
+        run: |
+          pip install bandit
+          bandit -r . -f json -o bandit-report.json || true
+
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: 'p/security-audit'
+          output: 'semgrep-report.json'
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            semgrep-report.json
+          retention-days: 7
+
+  # =========================================================================
+  # COMBINED SECURITY REPORT
+  # =========================================================================
+  security-report:
+    name: Generate Security Report
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, dockerfile-scan, k8s-scan, secret-scan, code-scan]
+    if: always()
+
+    steps:
+      - name: Download all reports
+        uses: actions/download-artifact@v4
+        with:
+          path: reports
+          merge-multiple: true
+
+      - name: Generate Combined Report
+        run: |
+          cat <<EOF > security-summary.md
+          # Security Scan Summary
+
+          ## Scan Date
+          $(date)
+
+          ## Repository
+          ${{ github.repository }}
+
+          ## Branch
+          ${{ github.ref }}
+
+          ## Summary
+
+          This report was generated by the automated security scanning workflow.
+
+          ### Scans Performed
+          - Dependency Vulnerability Scan
+          - Dockerfile Best Practices
+          - Kubernetes Security Scan
+          - Secret Scanning
+          - Code Security Analysis
+
+          ### Recommendations
+
+          1. Review all CRITICAL and HIGH severity findings
+          2. Update vulnerable dependencies
+          3. Fix Dockerfile best practices violations
+          4. Remove any hardcoded secrets
+          5. Address code security issues
+
+          ### Next Steps
+
+          - [ ] Review detailed reports in GitHub Security tab
+          - [ ] Create issues for critical findings
+          - [ ] Schedule remediation
+          - [ ] Re-run scans after fixes
+
+          EOF
+
+      - name: Upload Security Summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-summary
+          path: security-summary.md
+          retention-days: 30
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              body: '## Security Scan Complete\n\nSecurity scanning has completed. Review the results in the workflow artifacts.'
+            });

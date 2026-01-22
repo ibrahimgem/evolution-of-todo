@@ -1,0 +1,743 @@
+# Phase V: Enterprise Cloud Deployment
+# Dapr Components Configuration
+#
+# [Task]: T022-T024
+# [From]: speckit.specify §3.3, speckit.plan §2.3
+
+---
+# Dapr Configuration for the Todo Chatbot Application
+apiVersion: dapr.io/v1alpha1
+kind: Configuration
+metadata:
+  name: todo-chatbot-config
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-config
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  tracing:
+    enabled: true
+    exporterType: "zipkin"
+    exporterAddress: "http://jaeger-collector.monitoring.svc.cluster.local:9411/api/v2/spans"
+    expandParams: true
+    includeBody: false
+    samplingRate: "1"
+  metrics:
+    enabled: true
+    port: 9090
+    path: "/metrics"
+  mtls:
+    enabled: true
+    workloadCertTTL: "24h"
+    allowedClockSkew: "15m"
+  features:
+    - name: "Actor.Reentrancy"
+      enabled: true
+    - name: "ProxyProtocol"
+      enabled: false
+    - name: "DaprAPIToken"
+      enabled: true
+    - name: "HTTPClientTLSAuth"
+      enabled: true
+    - name: "GRPCClientTLSAuth"
+      enabled: true
+
+---
+# Dapr Pub/Sub Component - Kafka
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub-kafka
+  namespace: default
+  labels:
+    app.kubernetes.io/name: pubsub-kafka
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+    # Kafka broker configuration
+    - name: brokers
+      value: "todo-chatbot-kafka-kafka-bootstrap.kafka.svc.cluster.local:9093"
+    - name: authType
+      value: "tls"
+    - name: maxMessageBytes
+      value: "1048576"  # 1MB
+    - name: consumerGroup
+      value: "todo-chatbot-group"
+    - name: clientID
+      value: "todo-chatbot-pubsub"
+    - name: consumerOffset
+      value: "latest"
+    - name: maxConsumers
+      value: "10"
+    - name: authRequired
+      value: "true"
+    - name: initialOffset
+      value: "newest"
+
+    # TLS configuration
+    - name: tlsEnabled
+      value: "true"
+    - name: caCert
+      secretKeyRef:
+        name: todo-chatbot-kafka-cluster-ca-cert
+        key: ca.crt
+    - name: clientCert
+      secretKeyRef:
+        name: todo-chatbot-kafka-clients-ca-cert
+        key: ca.crt
+    - name: clientKey
+      secretKeyRef:
+        name: todo-chatbot-kafka-clients-ca-cert
+        key: ca.key
+
+    # Producer configuration
+    - name: disableProducer
+      value: "false"
+    - name: compression
+      value: "gzip"
+    - name: maxRequestSize
+      value: "1048576"  # 1MB
+    - name: batchSize
+      value: "16384"  # 16KB
+    - name: batchTimeout
+      value: "10ms"
+    - name: requiredAcks
+      value: "all"
+
+    # Consumer configuration
+    - name: disableConsumer
+      value: "false"
+    - name: consumerRetryInterval
+      value: "100ms"
+    - name: consumerRetryIntervalMax
+      value: "10s"
+    - name: consumerRetryMax
+      value: "3"
+    - name: commitRetryInterval
+      value: "100ms"
+    - name: commitRetryIntervalMax
+      value: "10s"
+    - name: commitRetryMax
+      value: "3"
+
+---
+# Dapr State Store Component - Redis
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+  namespace: default
+  labels:
+    app.kubernetes.io/name: statestore
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  type: state.redis
+  version: v1
+  metadata:
+    # Redis connection configuration
+    - name: redisHost
+      value: "redis-master.redis.svc.cluster.local:6379"
+    - name: redisPassword
+      secretKeyRef:
+        name: redis-secret
+        key: redis-password
+    - name: redisUsername
+      value: "default"
+    - name: enableTLS
+      value: "true"
+    - name: maxRetries
+      value: "3"
+    - name: maxRetryBackoff
+      value: "2s"
+    - name: dialTimeout
+      value: "5s"
+    - name: readTimeout
+      value: "3s"
+    - name: writeTimeout
+      value: "3s"
+
+    # Redis cluster configuration (if using cluster)
+    - name: redisType
+      value: "standalone"  # or "cluster" for Redis Cluster
+    - name: redisCluster
+      value: "false"
+
+    # Performance tuning
+    - name: actorStateStore
+      value: "true"  # Enable for actor state
+    - name: actorStateStoreType
+      value: "reliable"  # or "unreliable" for faster access
+    - name: concurrencyMode
+      value: "parallel"  # or "single" for sequential access
+    - name: concurrencyMaxRetries
+      value: "25"
+    - name: concurrencyMaxRetryInterval
+      value: "1m"
+    - name: concurrencyRetryInterval
+      value: "25ms"
+
+    # Data consistency
+    - name: strongLock
+      value: "true"  # Enable strong locking for consistency
+    - name: optimisticConcurrency
+      value: "true"  # Enable optimistic concurrency control
+
+---
+# Dapr Secret Store Component - Kubernetes Secrets
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: kubernetes-secrets
+  namespace: default
+  labels:
+    app.kubernetes.io/name: kubernetes-secrets
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  type: secretstores.kubernetes
+  version: v1
+  metadata: []
+
+---
+# Dapr Secret Store Component - Vault (Alternative)
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: vault-secrets
+  namespace: default
+  labels:
+    app.kubernetes.io/name: vault-secrets
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  type: secretstores.hashi.vault
+  version: v1
+  metadata:
+    - name: vaultAddr
+      value: "https://vault.default.svc.cluster.local:8200"
+    - name: vaultK8sRole
+      value: "todo-chatbot-role"
+    - name: vaultK8sAuthMountPath
+      value: "kubernetes"
+    - name: vaultK8sAuthMountType
+      value: "kubernetes"
+    - name: vaultK8sAuthKubeAuthEndpoint
+      value: "https://kubernetes.default.svc.cluster.local/api/v1/namespaces/default/serviceaccounts/namespace:default:serviceaccount:default"
+    - name: vaultK8sAuthKubeJWTPath
+      value: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    - name: vaultK8sAuthKubeCAPath
+      value: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+    - name: vaultK8sAuthKubeCA
+      value: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+    - name: vaultK8sAuthKubeJWT
+      value: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    - name: vaultK8sAuthKubeAuthPath
+      value: "auth/kubernetes/login"
+    - name: vaultK8sAuthKubeAuthRole
+      value: "todo-chatbot-role"
+    - name: vaultK8sAuthKubeAuthMountType
+      value: "kubernetes"
+
+---
+# Dapr Binding Component - HTTP
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: http-binding
+  namespace: default
+  labels:
+    app.kubernetes.io/name: http-binding
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  type: bindings.http
+  version: v1
+  metadata:
+    - name: url
+      value: "http://localhost:3500"
+    - name: method
+      value: "POST"
+    - name: headers
+      value: |
+        {
+          "Content-Type": "application/json",
+          "User-Agent": "Dapr-Binding"
+        }
+    - name: timeout
+      value: "30s"
+    - name: retryCount
+      value: "3"
+    - name: retryInterval
+      value: "1s"
+
+---
+# Dapr Binding Component - Cron Job
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: cronjob-binding
+  namespace: default
+  labels:
+    app.kubernetes.io/name: cronjob-binding
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  type: bindings.cron
+  version: v1
+  metadata:
+    - name: schedule
+      value: "@every 1h"  # Every hour
+    - name: direction
+      value: "out"  # Output binding
+    - name: data
+      value: |
+        {
+          "event_type": "SYSTEM_HEALTH_CHECK",
+          "timestamp": "{{.now}}"
+        }
+
+---
+# Dapr Observability Component - OpenTelemetry
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: observability
+  namespace: default
+  labels:
+    app.kubernetes.io/name: observability
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  type: exporters.opentelemetry
+  version: v1
+  metadata:
+    - name: endpoint
+      value: "jaeger-collector.monitoring.svc.cluster.local:14250"
+    - name: protocol
+      value: "grpc"
+    - name: enableTracing
+      value: "true"
+    - name: enableMetrics
+      value: "true"
+    - name: enableProfiling
+      value: "false"
+    - name: tracingSamplingRate
+      value: "1"
+    - name: tracingSamplingRatio
+      value: "1.0"
+    - name: tracingHeaders
+      value: "traceparent,tracestate"
+    - name: tracingAttributes
+      value: "app.name,dapr.runtime"
+
+---
+# Dapr Configuration for Actors
+apiVersion: dapr.io/v1alpha1
+kind: Configuration
+metadata:
+  name: actor-config
+  namespace: default
+  labels:
+    app.kubernetes.io/name: actor-config
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  actors:
+    hostedRuntime:
+      - todo
+      - user
+      - conversation
+    stateStore: "statestore"
+    placement:
+      host: "dapr-placement-server.dapr-system.svc.cluster.local"
+      port: 50005
+    actorIdleTimeout: "1h"
+    drainOngoingCallTimeout: "30s"
+    drainRebalancedActors: true
+    reentrancy:
+      enabled: true
+      maxStackDepth: 16
+    remindersStoragePartitions: 0
+
+---
+# Dapr Resiliency Configuration
+apiVersion: dapr.io/v1alpha1
+kind: Resiliency
+metadata:
+  name: todo-chatbot-resiliency
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-resiliency
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  # Circuit breaker for Kafka pub/sub
+  pubsub:
+    todo-chatbot-kafka:
+      timeout: "5s"
+      maxRetries: 3
+      circuitBreaker:
+        threshold: 0.05
+        interval: "30s"
+        timeout: "60s"
+        trip: "5"
+        halfOpenAfter: "30s"
+
+  # Circuit breaker for Redis state store
+  state:
+    statestore:
+      timeout: "3s"
+      maxRetries: 3
+      circuitBreaker:
+        threshold: 0.1
+        interval: "30s"
+        timeout: "30s"
+        trip: "3"
+        halfOpenAfter: "15s"
+
+  # Circuit breaker for service invocation
+  service:
+    todo-chatbot:
+      timeout: "10s"
+      maxRetries: 3
+      circuitBreaker:
+        threshold: 0.2
+        interval: "30s"
+        timeout: "30s"
+        trip: "3"
+        halfOpenAfter: "15s"
+
+  # Default retry policies
+  policies:
+    retry:
+      exponential:
+        maxInterval: "10s"
+        multiplier: 2
+      linear:
+        maxInterval: "5s"
+        retryCount: 3
+
+---
+# Redis StatefulSet for State Store
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: default
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  serviceName: redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7.0-alpine
+          ports:
+            - containerPort: 6379
+              name: redis
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: redis-password
+          command:
+            - redis-server
+            - --requirepass
+            - $(REDIS_PASSWORD)
+            - --appendonly
+            - yes
+            - --appendfsync
+            - everysec
+            - --maxmemory
+            - 512mb
+            - --maxmemory-policy
+            - allkeys-lru
+          volumeMounts:
+            - name: redis-storage
+              mountPath: /data
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      volumes:
+        - name: redis-storage
+          persistentVolumeClaim:
+            claimName: redis-pvc
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: "8Gi"
+        storageClassName: "do-block-storage"
+
+---
+# Redis Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: default
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: 6379
+      protocol: TCP
+      name: redis
+  selector:
+    app: redis
+
+---
+# Redis Headless Service for StatefulSet
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-headless
+  namespace: default
+  labels:
+    app.kubernetes.io/name: redis-headless
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  clusterIP: None
+  ports:
+    - port: 6379
+      targetPort: 6379
+      protocol: TCP
+      name: redis
+  selector:
+    app: redis
+
+---
+# Redis Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: redis-secret
+  namespace: default
+  labels:
+    app.kubernetes.io/name: redis-secret
+    app.kubernetes.io/part-of: todo-chatbot
+type: Opaque
+data:
+  redis-password: <base64-encoded-password>
+
+# Note: Replace <base64-encoded-password> with a base64 encoded random password
+# Generate with: echo -n "your-redis-password" | base64
+
+---
+# Redis Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: default
+  labels:
+    app.kubernetes.io/name: redis-pvc
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 8Gi
+  storageClassName: do-block-storage
+
+---
+# Network Policies for Dapr
+---
+# Dapr Control Plane Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dapr-control-plane
+  namespace: dapr-system
+  labels:
+    app.kubernetes.io/name: dapr-control-plane
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: dapr-system
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 50001
+        - protocol: TCP
+          port: 50002
+        - protocol: TCP
+          port: 9090
+        - protocol: TCP
+          port: 4000
+        - protocol: TCP
+          port: 50005
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: default
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 50001
+        - protocol: TCP
+          port: 50002
+        - protocol: TCP
+          port: 9090
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: dapr-system
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 50001
+        - protocol: TCP
+          port: 50002
+        - protocol: TCP
+          port: 9090
+        - protocol: TCP
+          port: 4000
+        - protocol: TCP
+          port: 50005
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kafka
+      ports:
+        - protocol: TCP
+          port: 9093
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 14250
+        - protocol: TCP
+          port: 9411
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+
+---
+# Todo Chatbot App Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: todo-chatbot-app
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-app
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: todo-chatbot
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: dapr-system
+      ports:
+        - protocol: TCP
+          port: 3500  # Dapr sidecar port
+        - protocol: TCP
+          port: 50001  # Dapr gRPC port
+        - protocol: TCP
+          port: 50002  # Dapr internal port
+        - protocol: TCP
+          port: 9090  # Dapr metrics port
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: kafka
+      ports:
+        - protocol: TCP
+          port: 9093
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: dapr-system
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 50001
+        - protocol: TCP
+          port: 50002
+        - protocol: TCP
+          port: 9090
+        - protocol: TCP
+          port: 4000
+        - protocol: TCP
+          port: 50005
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kafka
+      ports:
+        - protocol: TCP
+          port: 9093
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: monitoring
+      ports:
+        - protocol: TCP
+          port: 14250
+        - protocol: TCP
+          port: 9411
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 443  # HTTPS for external APIs
+        - protocol: TCP
+          port: 80   # HTTP for external APIs

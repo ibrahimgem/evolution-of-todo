@@ -1,0 +1,332 @@
+# Phase V: Enterprise Cloud Deployment
+# Kafka UI Deployment for Debugging and Monitoring
+#
+# [Task]: T014
+# [From]: speckit.specify §3.2, speckit.plan §2.2
+
+---
+# Kafka UI Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-ui
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: kafka-ui
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "0.7.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafka-ui
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kafka-ui
+        app.kubernetes.io/part-of: todo-chatbot
+    spec:
+      containers:
+        - name: kafka-ui
+          image: provectuslabs/kafka-ui:0.7.0
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: SERVER_PORT
+              value: "8080"
+            - name: KAFKA_CLUSTERS_0_NAME
+              value: "todo-chatbot-kafka"
+            - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
+              value: "todo-chatbot-kafka-kafka-bootstrap:9093"
+            - name: KAFKA_CLUSTERS_0_PROPERTIES_SECURITY_PROTOCOL
+              value: "SSL"
+            - name: KAFKA_CLUSTERS_0_PROPERTIES_SSL_TRUSTSTORE_LOCATION
+              value: "/opt/kafka-ui/truststore/truststore.jks"
+            - name: KAFKA_CLUSTERS_0_PROPERTIES_SSL_TRUSTSTORE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: todo-chatbot-kafka-cluster-ca-cert
+                  key: ca.password
+            - name: KAFKA_CLUSTERS_0_JMX_PORT
+              value: "5555"
+            - name: LOGGING_LEVEL_COM_PROVECTUS
+              value: "INFO"
+            - name: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+              value: "health,info,metrics"
+            - name: MANAGEMENT_HEALTH_PROBES_ENABLED
+              value: "true"
+            - name: SPRING_PROFILES_ACTIVE
+              value: "kubernetes"
+          volumeMounts:
+            - name: kafka-ui-config
+              mountPath: /opt/kafka-ui/config
+              readOnly: true
+            - name: kafka-ui-truststore
+              mountPath: /opt/kafka-ui/truststore
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: kafka-ui-config
+          configMap:
+            name: kafka-ui-config
+        - name: kafka-ui-truststore
+          secret:
+            secretName: todo-chatbot-kafka-cluster-ca-cert
+            items:
+              - key: ca.p12
+                path: truststore.jks
+      restartPolicy: Always
+      securityContext:
+        fsGroup: 1001
+
+---
+# Kafka UI Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-ui
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: kafka-ui
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: kafka-ui
+
+---
+# Kafka UI Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kafka-ui
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: kafka-ui
+    app.kubernetes.io/part-of: todo-chatbot
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+spec:
+  tls:
+    - hosts:
+        - kafka-ui.todo-chatbot.example.com
+      secretName: kafka-ui-tls
+  rules:
+    - host: kafka-ui.todo-chatbot.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kafka-ui
+                port:
+                  number: 8080
+
+---
+# Kafka UI ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-ui-config
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: kafka-ui-config
+    app.kubernetes.io/part-of: todo-chatbot
+data:
+  application.yml: |
+    kafka-ui:
+      environments:
+        local:
+          name: "Todo Chatbot Kafka"
+          bootstrapServers: "todo-chatbot-kafka-kafka-bootstrap:9093"
+          jmxProperties:
+            - host: "todo-chatbot-kafka-kafka-0"
+              port: 5555
+            - host: "todo-chatbot-kafka-kafka-1"
+              port: 5555
+            - host: "todo-chatbot-kafka-kafka-2"
+              port: 5555
+      features:
+        schemaRegistryEnabled: true
+        connectEnabled: true
+        aclEnabled: true
+        transactionsEnabled: true
+        internalApiEnabled: true
+        rebalanceEnabled: true
+      kafka:
+        schema-registry:
+          url: "http://todo-chatbot-schema-registry:8081"
+        connect:
+          url: "http://todo-chatbot-connect-api:8083"
+      security:
+        enabled: false  # Disable auth for internal access
+
+  logback-spring.xml: |
+    <configuration>
+      <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+          <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+      </appender>
+
+      <logger name="com.provectus" level="INFO"/>
+      <logger name="org.apache.kafka" level="WARN"/>
+      <logger name="org.springframework" level="WARN"/>
+
+      <root level="INFO">
+        <appender-ref ref="STDOUT"/>
+      </root>
+    </configuration>
+
+---
+# Kafka UI Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kafka-ui-network-policy
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: kafka-ui-network-policy
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: kafka-ui
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: kafka
+      ports:
+        - protocol: TCP
+          port: 8080
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: default
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kafka
+      ports:
+        - protocol: TCP
+          port: 9093
+        - protocol: TCP
+          port: 5555
+
+---
+# Kafka UI Service Monitor for Prometheus
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kafka-ui-metrics
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: kafka-ui-metrics
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafka-ui
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 30s
+      scrapeTimeout: 30s
+
+---
+# Kafka UI Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kafka-ui-pdb
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: kafka-ui-pdb
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafka-ui
+
+---
+# Kafka UI Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: kafka-ui-hpa
+  namespace: kafka
+  labels:
+    app.kubernetes.io/name: kafka-ui-hpa
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: kafka-ui
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

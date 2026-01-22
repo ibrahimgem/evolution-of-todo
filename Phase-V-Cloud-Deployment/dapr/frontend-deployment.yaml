@@ -1,0 +1,428 @@
+# Phase V: Enterprise Cloud Deployment
+# Frontend Deployment with Dapr Sidecar
+#
+# [Task]: T027
+# [From]: speckit.specify §3.3, speckit.plan §2.3
+
+---
+# Frontend Deployment with Dapr Sidecar
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-chatbot-frontend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-frontend
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: todo-chatbot-frontend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: todo-chatbot-frontend
+        app.kubernetes.io/part-of: todo-chatbot
+        app.kubernetes.io/version: "1.0.0"
+        app.kubernetes.io/component: frontend
+      annotations:
+        # Dapr Sidecar Configuration
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "todo-chatbot-frontend"
+        dapr.io/app-port: "3000"
+        dapr.io/config: "todo-chatbot-config"
+        dapr.io/metrics-port: "9090"
+        dapr.io/log-level: "info"
+        dapr.io/log-as-json: "false"
+        dapr.io/max-concurrency: "10"
+        dapr.io/http-max-request-size: "1048576"
+        dapr.io/http-read-buffer-size: "65536"
+        dapr.io/grpc-app-port: "50001"
+        dapr.io/grpc-max-concurrency: "10"
+        dapr.io/enable-api-logging: "true"
+        dapr.io/app-ssl: "false"
+
+        # Prometheus Metrics
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+
+        # Istio Sidecar (if using service mesh)
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: todo-chatbot-frontend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: frontend
+          image: todo-chatbot-frontend:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+              name: http
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "3000"
+            - name: NODE_ENV
+              value: "production"
+            - name: BACKEND_URL
+              value: "http://todo-chatbot-backend:3000"
+            - name: DAPR_HTTP_PORT
+              value: "3500"
+            - name: DAPR_GRPC_PORT
+              value: "50001"
+
+          # Health Check
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          # Resource Limits
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+
+          # Security Context
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+
+          # Volume Mounts
+          volumeMounts:
+            - name: frontend-storage
+              mountPath: /tmp
+            - name: dapr-sidecar
+              mountPath: /tmp/dapr
+
+      # Dapr Sidecar Container (injected automatically if enabled)
+      # If manual injection is needed, add:
+      # - name: daprd
+      #   image: "docker.io/daprio/daprd:1.12.0"
+      #   args: [...]
+
+      volumes:
+        - name: frontend-storage
+          emptyDir: {}
+        - name: dapr-sidecar
+          emptyDir: {}
+
+      # Pod Disruption Budget
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - todo-chatbot-frontend
+                topologyKey: kubernetes.io/hostname
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 10
+              preference:
+                matchExpressions:
+                  - key: node-type
+                    operator: In
+                    values:
+                      - worker
+
+      # Termination Grace Period
+      terminationGracePeriodSeconds: 30
+
+---
+# Frontend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-chatbot-frontend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-frontend
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/component: frontend
+  annotations:
+    dapr.io/enabled: "true"
+    dapr.io/app-id: "todo-chatbot-frontend"
+    dapr.io/metrics-port: "9090"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+      appProtocol: http
+  selector:
+    app.kubernetes.io/name: todo-chatbot-frontend
+
+---
+# Frontend Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: todo-chatbot-frontend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-frontend
+    app.kubernetes.io/part-of: todo-chatbot
+    app.kubernetes.io/component: frontend
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    dapr.io/enabled: "true"
+    dapr.io/app-id: "todo-chatbot-frontend"
+    dapr.io/config: "todo-chatbot-config"
+spec:
+  tls:
+    - hosts:
+        - www.todo-chatbot.example.com
+      secretName: todo-chatbot-frontend-tls
+  rules:
+    - host: www.todo-chatbot.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: todo-chatbot-frontend
+                port:
+                  number: 80
+
+---
+# Frontend Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: todo-chatbot-frontend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-frontend
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: todo-chatbot-frontend
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+
+---
+# Frontend Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: todo-chatbot-frontend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-frontend
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: todo-chatbot-frontend
+
+---
+# Frontend Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: todo-chatbot-frontend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-frontend
+    app.kubernetes.io/part-of: todo-chatbot
+
+---
+# Frontend Role for Kubernetes Secret Access
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: todo-chatbot-frontend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-frontend
+    app.kubernetes.io/part-of: todo-chatbot
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+
+---
+# Frontend Role Binding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: todo-chatbot-frontend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-frontend
+    app.kubernetes.io/part-of: todo-chatbot
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: todo-chatbot-frontend
+subjects:
+  - kind: ServiceAccount
+    name: todo-chatbot-frontend
+    namespace: default
+
+---
+# ConfigMap for Frontend Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: todo-chatbot-frontend-config
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-frontend-config
+    app.kubernetes.io/part-of: todo-chatbot
+data:
+  NEXT_PUBLIC_API_URL: "/api/v1"
+  NEXT_PUBLIC_WS_URL: "ws://localhost:3500/v1.0/invoke/todo-chatbot-frontend/method/ws"
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+  BACKEND_URL: "http://todo-chatbot-backend:3000"
+  DAPR_APP_ID: "todo-chatbot-backend"
+  DAPR_HTTP_PORT: "3500"
+  DAPR_GRPC_PORT: "50001"
+
+---
+# Frontend Network Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: todo-chatbot-frontend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-chatbot-frontend
+    app.kubernetes.io/part-of: todo-chatbot
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: todo-chatbot-frontend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: default
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: todo-chatbot-ingress
+      ports:
+        - protocol: TCP
+          port: 3000
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: dapr-system
+      ports:
+        - protocol: TCP
+          port: 3500
+        - protocol: TCP
+          port: 50001
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: dapr-system
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 50001
+        - protocol: TCP
+          port: 50002
+        - protocol: TCP
+          port: 9090
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: default
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: todo-chatbot-backend
+      ports:
+        - protocol: TCP
+          port: 3000
+        - protocol: TCP
+          port: 3500
+        - protocol: TCP
+          port: 50001
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80

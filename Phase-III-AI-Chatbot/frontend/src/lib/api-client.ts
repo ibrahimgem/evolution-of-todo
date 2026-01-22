@@ -274,6 +274,110 @@ class ApiClient {
       return false;
     }
   }
+
+  // ========================
+  // Task Management Methods
+  // ========================
+
+  /**
+   * Get all tasks for a user
+   * @param userId User ID
+   * @returns Array of tasks
+   * @throws ApiError on network or authentication errors
+   */
+  async getTasks(userId: number): Promise<TaskRead[]> {
+    const response = await fetch(`${this.baseUrl}/api/${userId}/tasks`, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    });
+
+    return this.handleResponse<TaskRead[]>(response);
+  }
+
+  /**
+   * Create a new task
+   * @param userId User ID
+   * @param taskData Task title and optional description
+   * @returns Created task
+   * @throws ApiError on validation or creation errors
+   */
+  async createTask(
+    userId: number,
+    taskData: { title: string; description?: string }
+  ): Promise<TaskRead> {
+    const response = await fetch(`${this.baseUrl}/api/${userId}/tasks`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(taskData),
+    });
+
+    return this.handleResponse<TaskRead>(response);
+  }
+
+  /**
+   * Update an existing task
+   * @param userId User ID
+   * @param taskId Task ID
+   * @param taskData Fields to update
+   * @returns Updated task
+   * @throws ApiError if task not found or access denied
+   */
+  async updateTask(
+    userId: number,
+    taskId: number,
+    taskData: { title?: string; description?: string; completed?: boolean }
+  ): Promise<TaskRead> {
+    const response = await fetch(`${this.baseUrl}/api/${userId}/tasks/${taskId}`, {
+      method: 'PUT',
+      headers: this.getHeaders(),
+      body: JSON.stringify(taskData),
+    });
+
+    return this.handleResponse<TaskRead>(response);
+  }
+
+  /**
+   * Delete a task
+   * @param userId User ID
+   * @param taskId Task ID
+   * @throws ApiError if task not found or access denied
+   */
+  async deleteTask(userId: number, taskId: number): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/api/${userId}/tasks/${taskId}`, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+
+    await this.handleResponse<{ message: string }>(response);
+  }
+
+  /**
+   * Toggle task completion status
+   * @param userId User ID
+   * @param taskId Task ID
+   * @returns Updated task
+   * @throws ApiError if task not found or access denied
+   */
+  async toggleTaskComplete(userId: number, taskId: number): Promise<TaskRead> {
+    const response = await fetch(`${this.baseUrl}/api/${userId}/tasks/${taskId}/complete`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+    });
+
+    return this.handleResponse<TaskRead>(response);
+  }
+}
+
+/**
+ * Task type definition
+ */
+export interface TaskRead {
+  id: number;
+  title: string;
+  description?: string;
+  completed: boolean;
+  created_at: string;
+  updated_at?: string;
 }
 
 /**
