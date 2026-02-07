@@ -1,2 +1,0 @@
-# Phase I: In-Memory Python Console Todo App
-# No external dependencies - Python standard library only
