@@ -1,8 +1,25 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { apiClient, TaskRead } from '../../lib/api-client';
+import { apiClient, TaskRead, TaskPriority } from '../../lib/api-client';
+
+// Sort options
+type SortField = 'created_at' | 'priority' | 'category' | 'title';
+type SortDirection = 'asc' | 'desc';
+
+const SORT_OPTIONS: { value: SortField; label: string }[] = [
+  { value: 'created_at', label: 'Date Created' },
+  { value: 'priority', label: 'Priority' },
+  { value: 'category', label: 'Category' },
+  { value: 'title', label: 'Title' },
+];
+
+const PRIORITY_ORDER: Record<TaskPriority, number> = {
+  high: 3,
+  medium: 2,
+  low: 1,
+};
 import TaskForm from '../../components/tasks/TaskForm';
 import TaskListView from '../../components/tasks/TaskListView';
 import {
@@ -13,6 +30,9 @@ import {
   X,
   AlertCircle,
   LogOut,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -27,6 +47,8 @@ export default function TasksPage() {
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingTask, setEditingTask] = useState<TaskRead | null>(null);
+  const [sortField, setSortField] = useState<SortField>('created_at');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   /**
    * Load all tasks for the current user
@@ -59,6 +81,51 @@ export default function TasksPage() {
       loadTasks();
     }
   }, [token, isAuthenticated, user, loadTasks]);
+
+  /**
+   * Sort tasks based on current sort field and direction
+   */
+  const sortedTasks = useMemo(() => {
+    const sorted = [...tasks].sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortField) {
+        case 'priority':
+          const priorityA = PRIORITY_ORDER[a.priority] || 0;
+          const priorityB = PRIORITY_ORDER[b.priority] || 0;
+          comparison = priorityA - priorityB;
+          break;
+        case 'category':
+          const catA = a.category || '';
+          const catB = b.category || '';
+          comparison = catA.localeCompare(catB);
+          break;
+        case 'title':
+          comparison = a.title.localeCompare(b.title);
+          break;
+        case 'created_at':
+        default:
+          comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
+    return sorted;
+  }, [tasks, sortField, sortDirection]);
+
+  /**
+   * Toggle sort direction or change sort field
+   */
+  const handleSortChange = (field: SortField) => {
+    if (field === sortField) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection(field === 'priority' ? 'desc' : 'asc');
+    }
+  };
 
   /**
    * Create a new task
@@ -313,6 +380,40 @@ export default function TasksPage() {
 
         {/* Task List */}
         <div className="rounded-2xl bg-white/60 dark:bg-gray-800/60 backdrop-blur-lg border border-gray-200 dark:border-gray-700 shadow-lg p-6">
+          {/* Sorting Controls */}
+          {tasks.length > 0 && (
+            <div className="mb-6 flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                <ArrowUpDown className="w-4 h-4" />
+                <span className="font-medium">Sort by:</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {SORT_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => handleSortChange(option.value)}
+                    className={`
+                      inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200
+                      ${sortField === option.value
+                        ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-2 border-blue-300 dark:border-blue-700'
+                        : 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400 border-2 border-transparent hover:bg-gray-200 dark:hover:bg-gray-700'
+                      }
+                    `}
+                  >
+                    {option.label}
+                    {sortField === option.value && (
+                      sortDirection === 'asc' ? (
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      ) : (
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      )
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20" role="status">
               <Loader2 className="w-10 h-10 animate-spin text-blue-600 mb-4" />
@@ -320,7 +421,7 @@ export default function TasksPage() {
             </div>
           ) : (
             <TaskListView
-              tasks={tasks}
+              tasks={sortedTasks}
               onToggleComplete={handleToggleComplete}
               onEdit={handleEditTask}
               onDelete={handleDeleteTask}
