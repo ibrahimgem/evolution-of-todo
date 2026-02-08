@@ -297,13 +297,13 @@ class ApiClient {
   /**
    * Create a new task
    * @param userId User ID
-   * @param taskData Task title and optional description
+   * @param taskData Task title and optional fields
    * @returns Created task
    * @throws ApiError on validation or creation errors
    */
   async createTask(
     userId: number,
-    taskData: { title: string; description?: string }
+    taskData: { title: string; description?: string; priority?: string; category?: string; due_date?: string }
   ): Promise<TaskRead> {
     const response = await fetch(`${this.baseUrl}/api/${userId}/tasks`, {
       method: 'POST',
@@ -325,7 +325,7 @@ class ApiClient {
   async updateTask(
     userId: number,
     taskId: number,
-    taskData: { title?: string; description?: string; completed?: boolean }
+    taskData: { title?: string; description?: string; priority?: string; category?: string; completed?: boolean; due_date?: string }
   ): Promise<TaskRead> {
     const response = await fetch(`${this.baseUrl}/api/${userId}/tasks/${taskId}`, {
       method: 'PUT',
@@ -369,13 +369,26 @@ class ApiClient {
 }
 
 /**
+ * Task priority levels
+ */
+export type TaskPriority = 'low' | 'medium' | 'high';
+
+/**
+ * Task category types
+ */
+export type TaskCategory = 'work' | 'personal' | 'shopping' | 'health' | 'finance' | 'education' | 'other';
+
+/**
  * Task type definition
  */
 export interface TaskRead {
   id: number;
   title: string;
   description?: string;
+  priority: TaskPriority;
+  category?: TaskCategory;
   completed: boolean;
+  due_date?: string;
   created_at: string;
   updated_at?: string;
 }

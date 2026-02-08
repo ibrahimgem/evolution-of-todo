@@ -22,6 +22,16 @@ class User(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=get_utc_now)
 
 
+# Priority enum values
+PRIORITY_LOW = "low"
+PRIORITY_MEDIUM = "medium"
+PRIORITY_HIGH = "high"
+VALID_PRIORITIES = [PRIORITY_LOW, PRIORITY_MEDIUM, PRIORITY_HIGH]
+
+# Category enum values
+VALID_CATEGORIES = ["work", "personal", "shopping", "health", "finance", "education", "other"]
+
+
 # Task model
 class Task(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -29,6 +39,8 @@ class Task(SQLModel, table=True):
     title: str = Field(min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=1000)
     completed: bool = Field(default=False)
+    priority: str = Field(default=PRIORITY_MEDIUM, max_length=20)  # low, medium, high
+    category: str | None = Field(default=None, max_length=50)  # work, personal, shopping, etc.
     due_date: datetime | None = Field(default=None)
     created_at: datetime = Field(default_factory=get_utc_now)
     updated_at: datetime = Field(default_factory=get_utc_now)
@@ -85,6 +97,8 @@ class TaskBase(SQLModel):
     title: str
     description: str | None = None
     completed: bool = False
+    priority: str = PRIORITY_MEDIUM  # low, medium, high
+    category: str | None = None  # work, personal, shopping, health, finance, education, other
     due_date: datetime | None = None
 
 
@@ -103,6 +117,8 @@ class TaskUpdate(SQLModel):
     title: str | None = None
     description: str | None = None
     completed: bool | None = None
+    priority: str | None = None
+    category: str | None = None
     due_date: datetime | None = None
 
 

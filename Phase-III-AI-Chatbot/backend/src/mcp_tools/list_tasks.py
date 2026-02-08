@@ -15,6 +15,11 @@ from src.models import Task
 logger = logging.getLogger(__name__)
 
 
+# Valid priority and category values for filtering
+VALID_PRIORITIES = ["low", "medium", "high"]
+VALID_CATEGORIES = ["work", "personal", "shopping", "health", "finance", "education", "other"]
+
+
 # Input schema per contract
 class ListTasksInput(BaseModel):
     """Input schema for list_tasks tool."""
@@ -22,6 +27,14 @@ class ListTasksInput(BaseModel):
     status: Literal["all", "complete", "incomplete"] = Field(
         default="all",
         description="Filter by completion status"
+    )
+    priority: Optional[str] = Field(
+        default=None,
+        description="Filter by priority: low, medium, or high"
+    )
+    category: Optional[str] = Field(
+        default=None,
+        description="Filter by category: work, personal, shopping, health, finance, education, other"
     )
     limit: int = Field(
         default=50,
@@ -66,7 +79,7 @@ class ListTasksOutput(BaseModel):
 # Tool metadata for MCP registration
 TOOL_METADATA = {
     "name": "list_tasks",
-    "description": "Retrieve user's tasks with optional filtering by completion status (all, complete, incomplete) and pagination support. Returns tasks ordered by creation date (newest first) with full details including id, title, description, completion status, due date, and timestamps.",
+    "description": "Retrieve user's tasks with optional filtering by completion status (all, complete, incomplete), priority (low, medium, high), and category (work, personal, shopping, health, finance, education, other). Supports pagination. Returns tasks ordered by creation date (newest first) with full details including id, title, description, priority, category, completion status, due date, and timestamps.",
     "input_schema": ListTasksInput.model_json_schema(),
     "output_schema": ListTasksOutput.model_json_schema()
 }
@@ -120,6 +133,18 @@ async def list_tasks(
             query = query.where(Task.completed == False)
         # "all" status - no additional filter needed
 
+        # Apply priority filter
+        if input_data.priority:
+            priority = input_data.priority.lower()
+            if priority in VALID_PRIORITIES:
+                query = query.where(Task.priority == priority)
+
+        # Apply category filter
+        if input_data.category:
+            category = input_data.category.lower()
+            if category in VALID_CATEGORIES:
+                query = query.where(Task.category == category)
+
         # Get total count (before pagination)
         count_query = select(func.count()).select_from(query.subquery())
         count_result = await db.execute(count_query)
@@ -142,10 +167,13 @@ async def list_tasks(
                 "id": task.id,
                 "title": task.title,
                 "description": task.description,
+                "priority": task.priority,
+                "category": task.category,
                 "completed": task.completed,
                 "due_date": task.due_date.isoformat() if task.due_date else None,
                 "created_at": task.created_at.isoformat(),
-                "updated_at": task.updated_at.isoformat()
+                "updated_at": task.updated_at.isoformat(),
+                "user_id": task.user_id
             }
             tasks_list.append(task_dict)
 

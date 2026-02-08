@@ -16,12 +16,19 @@ from src.models import Task, get_utc_now
 logger = logging.getLogger(__name__)
 
 
+# Valid priority and category values
+VALID_PRIORITIES = ["low", "medium", "high"]
+VALID_CATEGORIES = ["work", "personal", "shopping", "health", "finance", "education", "other"]
+
+
 # Input schema per contract
 class UpdateTaskInput(BaseModel):
     """Input schema for update_task tool."""
     task_id: int = Field(description="ID of the task to update (required)")
     title: Optional[str] = Field(default=None, min_length=1, max_length=200, description="New task title (optional)")
     description: Optional[str] = Field(default=None, max_length=1000, description="New task description (optional)")
+    priority: Optional[str] = Field(default=None, description="Task priority: low, medium, or high (optional)")
+    category: Optional[str] = Field(default=None, description="Task category: work, personal, shopping, health, finance, education, other (optional)")
     due_date: Optional[datetime] = Field(default=None, description="New due date in ISO8601 format (optional)")
 
     @field_validator('title')
@@ -30,6 +37,28 @@ class UpdateTaskInput(BaseModel):
         """Strip leading/trailing whitespace from title if provided."""
         if v is not None:
             return v.strip()
+        return v
+
+    @field_validator('priority')
+    @classmethod
+    def validate_priority(cls, v: Optional[str]) -> Optional[str]:
+        """Validate priority is one of the allowed values."""
+        if v is None:
+            return None
+        v = v.lower()
+        if v not in VALID_PRIORITIES:
+            raise ValueError(f"Priority must be one of: {', '.join(VALID_PRIORITIES)}")
+        return v
+
+    @field_validator('category')
+    @classmethod
+    def validate_category(cls, v: Optional[str]) -> Optional[str]:
+        """Validate category is one of the allowed values if provided."""
+        if v is None:
+            return None
+        v = v.lower()
+        if v not in VALID_CATEGORIES:
+            raise ValueError(f"Category must be one of: {', '.join(VALID_CATEGORIES)}")
         return v
 
     @field_validator('due_date')
@@ -82,10 +111,10 @@ async def update_task(
             )
 
         # Validate that at least one update field is provided
-        if input_data.title is None and input_data.description is None and input_data.due_date is None:
+        if all(v is None for v in [input_data.title, input_data.description, input_data.priority, input_data.category, input_data.due_date]):
             return UpdateTaskOutput(
                 success=False,
-                error="At least one field (title, description, due_date) must be provided"
+                error="At least one field (title, description, priority, category, due_date) must be provided"
             )
 
         logger.info(f"[{request_id}] update_task tool executing for user_id={user_id}, task_id={input_data.task_id}")
@@ -107,6 +136,10 @@ async def update_task(
             task.title = input_data.title
         if input_data.description is not None:
             task.description = input_data.description
+        if input_data.priority is not None:
+            task.priority = input_data.priority
+        if input_data.category is not None:
+            task.category = input_data.category
         if input_data.due_date is not None:
             # Already validated as future date, use timezone-naive UTC for database compatibility
             if input_data.due_date.tzinfo is None:
@@ -126,8 +159,13 @@ async def update_task(
             "id": task.id,
             "title": task.title,
             "description": task.description,
+            "priority": task.priority,
+            "category": task.category,
+            "completed": task.completed,
             "due_date": task.due_date.isoformat() if task.due_date else None,
-            "updated_at": task.updated_at.isoformat()
+            "created_at": task.created_at.isoformat(),
+            "updated_at": task.updated_at.isoformat(),
+            "user_id": task.user_id
         }
 
         return UpdateTaskOutput(

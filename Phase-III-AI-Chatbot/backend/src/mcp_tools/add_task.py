@@ -17,6 +17,11 @@ from ..models import get_utc_now
 logger = logging.getLogger(__name__)
 
 
+# Valid priority and category values
+VALID_PRIORITIES = ["low", "medium", "high"]
+VALID_CATEGORIES = ["work", "personal", "shopping", "health", "finance", "education", "other"]
+
+
 # Input schema per contract
 class AddTaskInput(BaseModel):
     """Input schema for add_task tool."""
@@ -31,10 +36,40 @@ class AddTaskInput(BaseModel):
         max_length=1000,
         description="Task description (optional)"
     )
+    priority: Optional[str] = Field(
+        default="medium",
+        description="Task priority: low, medium, or high (default: medium)"
+    )
+    category: Optional[str] = Field(
+        default=None,
+        description="Task category: work, personal, shopping, health, finance, education, other (optional)"
+    )
     due_date: Optional[datetime] = Field(
         default=None,
         description="Due date in ISO8601 format (optional, must be future date)"
     )
+
+    @field_validator('priority')
+    @classmethod
+    def validate_priority(cls, v: Optional[str]) -> str:
+        """Validate priority is one of the allowed values."""
+        if v is None:
+            return "medium"
+        v = v.lower()
+        if v not in VALID_PRIORITIES:
+            raise ValueError(f"Priority must be one of: {', '.join(VALID_PRIORITIES)}")
+        return v
+
+    @field_validator('category')
+    @classmethod
+    def validate_category(cls, v: Optional[str]) -> Optional[str]:
+        """Validate category is one of the allowed values if provided."""
+        if v is None:
+            return None
+        v = v.lower()
+        if v not in VALID_CATEGORIES:
+            raise ValueError(f"Category must be one of: {', '.join(VALID_CATEGORIES)}")
+        return v
 
     @field_validator('title')
     @classmethod
@@ -125,6 +160,8 @@ async def add_task(
             user_id=user_id,
             title=input_data.title,
             description=input_data.description,
+            priority=input_data.priority or "medium",
+            category=input_data.category,
             completed=False,
             created_at=get_utc_now(),
             updated_at=get_utc_now()
@@ -151,6 +188,8 @@ async def add_task(
             "id": task.id,
             "title": task.title,
             "description": task.description,
+            "priority": task.priority,
+            "category": task.category,
             "due_date": task.due_date.isoformat() if hasattr(task, 'due_date') and task.due_date else None,
             "completed": task.completed,
             "created_at": task.created_at.isoformat(),

@@ -118,6 +118,8 @@ async def create_task(
             title=title,
             description=description,
             completed=task_data.completed or False,
+            priority=task_data.priority or "medium",
+            category=task_data.category,
             due_date=task_data.due_date,
             user_id=user_id
         )
@@ -257,6 +259,12 @@ async def update_task(
 
         if task_update.completed is not None:
             task.completed = task_update.completed
+
+        if task_update.priority is not None:
+            task.priority = task_update.priority
+
+        if task_update.category is not None:
+            task.category = task_update.category
 
         if task_update.due_date is not None:
             task.due_date = task_update.due_date

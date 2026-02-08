@@ -63,7 +63,7 @@ export default function TasksPage() {
   /**
    * Create a new task
    */
-  const handleCreateTask = async (taskData: { title: string; description?: string }) => {
+  const handleCreateTask = async (taskData: { title: string; description?: string; priority?: string; category?: string }) => {
     if (!userId) return;
 
     setError(null);
@@ -80,7 +80,7 @@ export default function TasksPage() {
   /**
    * Update an existing task
    */
-  const handleUpdateTask = async (taskData: { title: string; description?: string }) => {
+  const handleUpdateTask = async (taskData: { title: string; description?: string; priority?: string; category?: string }) => {
     if (!userId || !editingTask) return;
 
     setError(null);
